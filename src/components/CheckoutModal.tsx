@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Lock, CreditCard, CheckCircle, ArrowRight, Truck, Printer, Sparkles } from 'lucide-react';
+import { X, ShieldCheck, Lock, CreditCard, CheckCircle, ArrowRight, Truck, Printer, Sparkles, ExternalLink } from 'lucide-react';
 import { CartItem, Currency, ShippingDetails, Order } from '../types';
 import { formatPrice } from '../utils/formatters';
+
+const PAYPAL_HANDLE = 'goesftbl';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -42,7 +44,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   });
 
   const [shippingMethod, setShippingMethod] = useState<'standard' | 'dpd_express'>('standard');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple_pay' | 'google_pay' | 'revolut'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'paypal' | 'card'>('paypal');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
@@ -65,6 +67,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const shippingCost = shippingMethod === 'standard' ? standardShippingCost : expressShippingCost;
   const grandTotal = discountedSubtotal + shippingCost;
 
+  const paypalPaymentUrl = `https://paypal.me/${PAYPAL_HANDLE}/${grandTotal.toFixed(2)}${currency}`;
+
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!shippingDetails.fullName || !shippingDetails.email || !shippingDetails.addressLine1) return;
@@ -75,9 +79,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     e.preventDefault();
     setIsProcessing(true);
 
+    const randomOrderId = `OCI-GAA-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    // If user selects PayPal, open the PayPal payment link in a new tab
+    if (paymentMethod === 'paypal') {
+      try {
+        window.open(paypalPaymentUrl, '_blank', 'noopener,noreferrer');
+      } catch {
+        // Fallback handled on confirmed screen
+      }
+    }
+
     setTimeout(() => {
       setIsProcessing(false);
-      const randomOrderId = `OCI-GAA-${Math.floor(10000 + Math.random() * 90000)}`;
       const order: Order = {
         orderId: randomOrderId,
         createdAt: new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -88,14 +102,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         total: grandTotal,
         currency,
         shippingDetails,
-        deliveryMethod: shippingMethod === 'standard' ? 'An Post Tracked (1-2 days)' : 'DPD GAA Matchday 24h Express'
+        deliveryMethod: shippingMethod === 'standard' ? 'An Post Tracked (1-2 days)' : 'DPD GAA Matchday 24h Express',
+        paymentMethod
       };
 
       setConfirmedOrder(order);
       onOrderCompleted(order);
       onClearCart();
       setStep('confirmed');
-    }, 1400);
+    }, 1200);
   };
 
   // Card number input formatter
@@ -380,47 +395,83 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* STEP 2: PAYMENT METHOD */}
         {step === 'payment' && (
           <form onSubmit={handlePaymentSubmit} className="space-y-5">
-            {/* Quick 1-Click Payment Pills */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* Clean 2-Option Payment Selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('paypal')}
+                className={`p-3.5 rounded-xl border text-left transition-all relative ${
+                  paymentMethod === 'paypal'
+                    ? 'bg-[#0070ba]/15 border-[#0070ba] text-white ring-1 ring-[#0070ba]/50 shadow-md'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-[#0070ba] text-white flex items-center justify-center font-black italic text-xs">
+                      P
+                    </span>
+                    <span className="font-bold text-xs uppercase tracking-wide text-white">PayPal</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-[#60c5ff] bg-[#0070ba]/20 px-2 py-0.5 rounded border border-[#0070ba]/40">
+                    @goesftbl
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Instant transfer • Revolut Cards, Bank, or PayPal
+                </p>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setPaymentMethod('card')}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
+                className={`p-3.5 rounded-xl border text-left transition-all ${
                   paymentMethod === 'card'
-                    ? 'bg-zinc-800 border-[#d4af37] text-white shadow-md'
-                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    ? 'bg-zinc-850 border-[#d4af37] text-white ring-1 ring-[#d4af37]/50 shadow-md'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
                 }`}
               >
-                <CreditCard className="w-4 h-4" />
-                <span>Card</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('apple_pay')}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
-                  paymentMethod === 'apple_pay'
-                    ? 'bg-zinc-800 border-[#d4af37] text-white shadow-md'
-                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span> Pay</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('revolut')}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
-                  paymentMethod === 'revolut'
-                    ? 'bg-zinc-800 border-[#d4af37] text-white shadow-md'
-                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span>Revolut Pay</span>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[#d4af37]">
+                      <CreditCard className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-bold text-xs uppercase tracking-wide text-white">Debit / Credit Card</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Revolut Card, Visa, Mastercard
+                </p>
               </button>
             </div>
 
-            {paymentMethod === 'card' ? (
+            {/* Subtle accepted payment methods note */}
+            <div className="flex items-center justify-between text-[10px] text-zinc-400 px-1">
+              <span>Accepted: Revolut • Visa • Mastercard • Apple Pay • PayPal</span>
+              <span className="flex items-center gap-1 text-emerald-400">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Buyer Protected</span>
+              </span>
+            </div>
+
+            {paymentMethod === 'paypal' ? (
+              <div className="p-4 rounded-xl bg-zinc-950 border border-[#0070ba]/30 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#0070ba]/20 border border-[#0070ba]/40 flex items-center justify-center text-[#0070ba] shrink-0">
+                    <span className="font-black italic text-sm text-[#0070ba]">P</span>
+                  </div>
+                  <div className="flex-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">Direct Transfer to @goesftbl</span>
+                      <span className="font-mono text-[11px] text-[#60c5ff]">paypal.me/goesftbl</span>
+                    </div>
+                    <p className="text-zinc-400 mt-1 text-[11px] leading-relaxed">
+                      Revolut users can pay instantly using their Revolut card or balance through PayPal. No account creation is required for card checkout.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
               <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 block mb-1">
@@ -437,6 +488,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     />
                     <CreditCard className="w-4 h-4 text-zinc-500 absolute right-3 top-2.5" />
                   </div>
+                  <span className="text-[10px] text-zinc-400 mt-1 block">Works with Revolut debit cards and standard bank cards.</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -483,17 +535,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   />
                 </div>
               </div>
-            ) : (
-              <div className="p-5 rounded-xl bg-zinc-950 border border-zinc-800 text-center space-y-2">
-                <div className="text-xs text-zinc-300">
-                  {paymentMethod === 'apple_pay'
-                    ? 'Apple Pay biometric one-touch authentication ready.'
-                    : 'Revolut Pay instant transfer ready.'}
-                </div>
-                <div className="text-[11px] text-zinc-500">
-                  Click 'Authorize Payment' below to confirm your GAA gear order securely.
-                </div>
-              </div>
             )}
 
             {/* Order Items Review Table */}
@@ -536,12 +577,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 type="submit"
                 id="submit-payment-btn"
                 disabled={isProcessing}
-                className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:brightness-110 cursor-pointer shadow-lg shadow-[#d4af37]/20 disabled:opacity-50"
+                className={`px-6 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-50 transition-all ${
+                  paymentMethod === 'paypal'
+                    ? 'bg-[#ffc439] hover:bg-[#f4b82d] text-[#003087] shadow-[#ffc439]/20 font-extrabold'
+                    : 'bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black hover:brightness-110 shadow-[#d4af37]/20'
+                }`}
               >
                 {isProcessing ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                    <span>Authorizing Payment...</span>
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span>Connecting to Payment...</span>
+                  </>
+                ) : paymentMethod === 'paypal' ? (
+                  <>
+                    <span className="font-black italic text-sm text-[#003087]">P</span>
+                    <span>Pay {formatPrice(grandTotal, currency)} with PayPal</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" />
                   </>
                 ) : (
                   <>
@@ -614,6 +665,46 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* PayPal Payment Instructions Card if paid with PayPal */}
+            {confirmedOrder.paymentMethod === 'paypal' && (
+              <div className="p-4 sm:p-5 rounded-xl bg-[#0070ba]/10 border border-[#0070ba]/40 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-[#0070ba] text-white flex items-center justify-center font-black italic text-xs">
+                      P
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-bold text-[#60c5ff] uppercase tracking-wide">
+                        PayPal Transfer (@goesftbl)
+                      </h4>
+                      <p className="text-[11px] text-zinc-400">
+                        Amount: <strong className="text-white">{formatPrice(confirmedOrder.total, currency)}</strong> • Note: <strong className="font-mono text-white">{confirmedOrder.orderId}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                    Awaiting Payment
+                  </span>
+                </div>
+
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  If the PayPal transfer window did not automatically open, tap the button below to complete the {formatPrice(confirmedOrder.total, currency)} payment directly to <strong>@goesftbl</strong>:
+                </p>
+
+                <div className="pt-1">
+                  <a
+                    href={`https://paypal.me/${PAYPAL_HANDLE}/${confirmedOrder.total.toFixed(2)}${currency}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#ffc439] hover:bg-[#f4b82d] text-[#003087] font-black text-xs uppercase tracking-wider transition-all shadow-md"
+                  >
+                    <span>Open paypal.me/goesftbl</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#003087]" />
+                  </a>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

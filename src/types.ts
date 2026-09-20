@@ -84,7 +84,7 @@ export interface ShippingDetails {
 }
 
 export interface PaymentDetails {
-  paymentMethod: 'card' | 'apple_pay' | 'google_pay' | 'revolut';
+  paymentMethod: 'paypal' | 'card' | 'apple_pay' | 'google_pay' | 'revolut';
   cardNumber: string;
   cardExpiry: string;
   cardCvc: string;
@@ -102,4 +102,5 @@ export interface Order {
   currency: Currency;
   shippingDetails: ShippingDetails;
   deliveryMethod: string;
+  paymentMethod?: 'paypal' | 'card' | 'apple_pay' | 'google_pay' | 'revolut';
 }
