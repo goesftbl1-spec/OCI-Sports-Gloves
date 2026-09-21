@@ -119,5 +119,6 @@ export const CHAT_KNOWLEDGE_BASE: Record<string, string> = {
   club: 'Use code GAACLUB20 at checkout for 20% off team/club bulk orders of 10+ pairs!',
   delivery: 'Orders are shipped from Ireland via An Post Tracked & DPD 24h Express. Orders placed before 2 PM dispatch same-day.',
   care: 'Wash gently in lukewarm water after muck or wet pitch games. Never dry on hot radiators as this will dry out the grip.',
+  contact: 'You can email our team directly at contactocisports@gmail.com anytime. We respond within a few hours!',
   default: 'Dia duit! I am your OCI Sports Gaelic Gear Specialist. Ask me anything about sizing S/M/L, match delivery, or the ELITE 2.0 GLOVES!'
 };

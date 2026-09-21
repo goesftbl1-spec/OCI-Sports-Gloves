@@ -1,9 +1,72 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Lock, CreditCard, CheckCircle, ArrowRight, Truck, Printer, Sparkles, ExternalLink } from 'lucide-react';
+import { X, ShieldCheck, Lock, CreditCard, CheckCircle, ArrowRight, Truck, Printer, Sparkles, ExternalLink, Mail } from 'lucide-react';
 import { CartItem, Currency, ShippingDetails, Order } from '../types';
 import { formatPrice } from '../utils/formatters';
 
 const PAYPAL_HANDLE = 'goesftbl';
+const CONTACT_EMAIL = 'contactocisports@gmail.com';
+
+const sendOrderNotificationToFulfillment = async (order: Order) => {
+  const itemsList = order.items
+    .map((it) => `${it.quantity}x ${it.product.name} (Size: ${it.selectedSize})`)
+    .join(', ');
+
+  const payload = {
+    _subject: `New OCI Sports Order #${order.orderId} - €${order.total.toFixed(2)} - ${order.shippingDetails.fullName}`,
+    _template: 'table',
+    _captcha: 'false',
+    OrderID: order.orderId,
+    CustomerName: order.shippingDetails.fullName,
+    Email: order.shippingDetails.email,
+    Phone: order.shippingDetails.phone,
+    AddressLine1: order.shippingDetails.addressLine1,
+    City: order.shippingDetails.city,
+    County: order.shippingDetails.county,
+    EircodePostcode: order.shippingDetails.eircodePostcode,
+    DeliveryService: order.deliveryMethod,
+    DeliveryNotes: order.shippingDetails.deliveryNote || 'None',
+    ItemsOrdered: itemsList,
+    TotalAmount: `€${order.total.toFixed(2)}`,
+    PaymentMethod: order.paymentMethod === 'paypal' ? 'PayPal (@goesftbl)' : 'Card Payment',
+    DatePlaced: new Date().toLocaleString('en-IE')
+  };
+
+  // Record to backend server database so orders are permanently visible in Hub from any device
+  try {
+    await fetch('/api/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(order)
+    });
+  } catch (err) {
+    console.error('Error recording order to /api/orders:', err);
+  }
+
+  // Also attempt email notification
+  try {
+    await fetch(`https://formsubmit.co/ajax/${CONTACT_EMAIL}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error('Error dispatching order notification to fulfillment email:', err);
+  }
+
+  // Also record locally in case of device view
+  try {
+    const existing = JSON.parse(localStorage.getItem('oci_orders_log') || '[]');
+    existing.unshift(order);
+    localStorage.setItem('oci_orders_log', JSON.stringify(existing));
+  } catch (err) {
+    console.error('Error saving order locally:', err);
+  }
+};
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -107,6 +170,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       };
 
       setConfirmedOrder(order);
+      sendOrderNotificationToFulfillment(order);
       onOrderCompleted(order);
       onClearCart();
       setStep('confirmed');
@@ -620,8 +684,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 YOU'RE MATCH READY!
               </h3>
               <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-                Confirmation email and tracking updates sent to <strong>{confirmedOrder.shippingDetails.email}</strong>
+                Order confirmation & delivery details dispatched to <strong>contactocisports@gmail.com</strong>
               </p>
+            </div>
+
+            {/* Fulfillment Notification Banner */}
+            <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-left flex items-start gap-2.5 text-xs">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-bold text-emerald-300">Address Dispatched to OCI Sports Fulfillment</span>
+                <p className="text-[11px] text-zinc-300 mt-0.5">
+                  Your delivery address, Eircode, and order specs have been sent to <strong>contactocisports@gmail.com</strong> for An Post / DPD dispatch.
+                </p>
+              </div>
             </div>
 
             {/* Order Reference Card */}
@@ -707,20 +782,37 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
               <button
                 onClick={() => window.print()}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border border-zinc-700"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border border-zinc-700"
               >
                 <Printer className="w-4 h-4" />
-                <span>Print Match Receipt</span>
+                <span>Print Receipt</span>
               </button>
+
+              <a
+                href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Order #${confirmedOrder.orderId} - ${confirmedOrder.shippingDetails.fullName}`)}&body=${encodeURIComponent(
+                  `Hi OCI Sports,\n\nHere are my order details for #${confirmedOrder.orderId}:\n\n` +
+                  `Name: ${confirmedOrder.shippingDetails.fullName}\n` +
+                  `Address: ${confirmedOrder.shippingDetails.addressLine1}, ${confirmedOrder.shippingDetails.city}, Co. ${confirmedOrder.shippingDetails.county}\n` +
+                  `Eircode: ${confirmedOrder.shippingDetails.eircodePostcode}\n` +
+                  `Phone: ${confirmedOrder.shippingDetails.phone}\n` +
+                  `Total: €${confirmedOrder.total.toFixed(2)}\n` +
+                  `Items: ${confirmedOrder.items.map(it => `${it.quantity}x ${it.product.name} (Size: ${it.selectedSize})`).join(', ')}\n\n` +
+                  `Thank you!`
+                )}`}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border border-zinc-700"
+              >
+                <Mail className="w-4 h-4 text-[#d4af37]" />
+                <span>Email Copy</span>
+              </a>
 
               <button
                 onClick={onClose}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-[#d4af37] text-black text-xs font-black uppercase tracking-wider hover:bg-[#f5df88]"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[#d4af37] text-black text-xs font-black uppercase tracking-wider hover:bg-[#f5df88]"
               >
-                Back To OCI Sports
+                Back To Store
               </button>
             </div>
           </div>

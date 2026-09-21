@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -7,14 +7,46 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onShopNow }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(() => {
+        // Safe fallback if browser requires interaction
+      });
+    }
+  }, []);
+
+  const handleEnded = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+  };
+
   return (
     <section className="relative min-h-[90vh] flex flex-col items-center justify-center text-center px-4 sm:px-6 bg-black overflow-hidden">
+      {/* Full-Screen Video Background covering entire hero section */}
+      <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
+        <video
+          ref={videoRef}
+          src="/hero-video.mp4"
+          autoPlay
+          muted
+          playsInline
+          loop={false}
+          onEnded={handleEnded}
+          className="w-full h-full object-cover object-center"
+        />
+        {/* Subtle dark gradient overlay to guarantee text and buttons remain crisp and legible */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/45 to-black/85" />
+      </div>
+
       {/* Warm Golden Glow behind top-left of the headline */}
       <motion.div 
         initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 0.4, scale: 1 }}
+        animate={{ opacity: 0.35, scale: 1 }}
         transition={{ duration: 1.2, ease: "easeOut" }}
-        className="absolute top-1/4 left-1/2 -translate-x-[75%] -translate-y-1/2 w-[350px] sm:w-[500px] h-[300px] sm:h-[400px] rounded-full pointer-events-none blur-[100px]"
+        className="absolute top-1/4 left-1/2 -translate-x-[75%] -translate-y-1/2 w-[350px] sm:w-[500px] h-[300px] sm:h-[400px] rounded-full pointer-events-none blur-[100px] z-[1]"
         style={{ background: 'radial-gradient(circle, #e5b338 0%, rgba(229, 179, 56, 0) 70%)' }}
       />
 

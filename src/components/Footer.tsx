@@ -4,9 +4,10 @@ import { ShieldCheck, Mail, ArrowRight, Check } from 'lucide-react';
 interface FooterProps {
   onOpenSizingModal: () => void;
   onOpenChat: () => void;
+  onOpenOrdersModal?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, onOpenOrdersModal }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -129,7 +130,12 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat })
               <li><span className="text-zinc-200">Ireland:</span> An Post & DPD 24h Express</li>
               <li><span className="text-zinc-200">UK & Worldwide:</span> Tracked Air Express</li>
               <li><span className="text-[#d4af37] font-semibold">Club Code:</span> GAACLUB20 (20% Off 10+ Pairs)</li>
-              <li><span className="text-zinc-200">Support:</span> support@ocisports.ie</li>
+              <li>
+                <span className="text-zinc-200">Email:</span>{' '}
+                <a href="mailto:contactocisports@gmail.com" className="text-white hover:text-[#d4af37] transition-colors underline decoration-zinc-700">
+                  contactocisports@gmail.com
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -139,10 +145,22 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat })
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
           <div className="flex items-center gap-4">
             <span className="text-zinc-400 font-semibold">Accepted:</span>
-            <span className="font-mono text-zinc-400">VISA • Mastercard • Apple Pay • Revolut</span>
+            <span className="font-mono text-zinc-400">VISA • Mastercard • Apple Pay • Revolut • PayPal</span>
           </div>
-          <div>
-            © {new Date().getFullYear()} OCI Sports Ltd. Engineered for Gaelic Football. All rights reserved.
+
+          <div className="flex items-center gap-4">
+            {onOpenOrdersModal && (
+              <button
+                type="button"
+                onClick={onOpenOrdersModal}
+                className="text-zinc-500 hover:text-[#d4af37] transition-colors underline decoration-zinc-700 hover:decoration-[#d4af37] cursor-pointer"
+              >
+                Orders & Dispatch Hub
+              </button>
+            )}
+            <span>
+              © {new Date().getFullYear()} OCI Sports Ltd. Engineered for Gaelic Football. All rights reserved.
+            </span>
           </div>
         </div>
 

@@ -13,6 +13,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
 import { NotificationToast, ToastMessage } from './components/NotificationToast';
+import { OrdersDispatchModal } from './components/OrdersDispatchModal';
 
 import { SINGLE_PRODUCT, REVIEWS } from './data/mockData';
 import { Product, CartItem, GloveSize, Currency, Review, Order } from './types';
@@ -41,6 +42,8 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isSizingModalOpen, setIsSizingModalOpen] = useState(false);
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
+  const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
 
   // Pop-up Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -148,7 +151,8 @@ export default function App() {
   };
 
   const handleOrderCompleted = (order: Order) => {
-    addToast('Order Confirmed', `Order #${order.orderId} dispatched to Dublin warehouse`);
+    setRecentOrders((prev) => [order, ...prev]);
+    addToast('Order Dispatched', `Order #${order.orderId} logged & dispatched to contactocisports@gmail.com`);
   };
 
   const cartTotalCount = cartItems.reduce((acc, i) => acc + i.quantity, 0);
@@ -210,25 +214,41 @@ export default function App() {
       </main>
 
       {/* Minimalistic Footer */}
-      <footer className="py-6 border-t border-zinc-900 bg-black text-center text-xs text-zinc-400">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+      <footer className="py-7 border-t border-zinc-900 bg-black text-xs text-zinc-400">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
             <span className="font-bold text-white uppercase tracking-wider font-['Outfit']">OCI SPORTS</span>
-            <span>•</span>
+            <span className="text-zinc-600">•</span>
             <span>Any Condition. We Have You Covered.</span>
+            <span className="text-zinc-600">•</span>
+            <a
+              href="mailto:contactocisports@gmail.com"
+              className="text-zinc-300 hover:text-[#d4af37] underline decoration-zinc-800 hover:decoration-[#d4af37] transition-colors"
+            >
+              contactocisports@gmail.com
+            </a>
           </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            <span>Fast DPD & An Post Tracked Dispatch</span>
-            <span>•</span>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 text-[11px]">
+            <span>Fast DPD & An Post Tracked</span>
+            <span className="text-zinc-600">•</span>
             <button
               onClick={() => setIsSizingModalOpen(true)}
               className="hover:text-white underline cursor-pointer"
             >
-              Hand Sizing Guide (S, M, L)
+              Hand Sizing Guide
+            </button>
+            <span className="text-zinc-600">•</span>
+            <button
+              onClick={() => setIsOrdersModalOpen(true)}
+              className="text-[#d4af37] hover:text-[#f5df88] font-bold underline decoration-[#d4af37]/40 cursor-pointer"
+            >
+              Orders & Dispatch Hub
             </button>
           </div>
-          <div>
-            © {new Date().getFullYear()} OCI Sports Ltd.
+
+          <div className="text-[11px] text-zinc-500">
+            © {new Date().getFullYear()} OCI Sports Ltd. All rights reserved.
           </div>
         </div>
       </footer>
@@ -279,6 +299,13 @@ export default function App() {
         appliedPromo={appliedPromo}
         onOrderCompleted={handleOrderCompleted}
         onClearCart={() => setCartItems([])}
+      />
+
+      {/* Orders & Dispatch Hub for Store Manager */}
+      <OrdersDispatchModal
+        isOpen={isOrdersModalOpen}
+        onClose={() => setIsOrdersModalOpen(false)}
+        recentOrders={recentOrders}
       />
 
       {/* Live Chat Support Widget */}
