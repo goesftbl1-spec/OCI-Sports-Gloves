@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, ShieldCheck, Sparkles, User, Bot } from 'lucide-react';
 import { ChatMessage } from '../types';
-import { CHAT_KNOWLEDGE_BASE } from '../data/mockData';
 
 export const LiveChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,10 +11,10 @@ export const LiveChatWidget: React.FC = () => {
       text: 'Dia duit! Welcome to OCI Sports GAA Support. How can we help you gear up for your next club or county clash?',
       time: 'Just now',
       quickReplies: [
-        'Best glove for wet rain?',
-        'How to measure hand size?',
-        'Club bulk 20% off code',
-        'How do I care for my gloves?'
+        'How much are the gloves?',
+        'Do you ship to Galway?',
+        'What sizes do you have?',
+        'Are the gloves waterproof?'
       ]
     }
   ]);
@@ -29,7 +28,7 @@ export const LiveChatWidget: React.FC = () => {
     }
   }, [messages, isOpen, isTyping]);
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const content = textToSend || inputText;
     if (!content.trim()) return;
 
@@ -40,40 +39,58 @@ export const LiveChatWidget: React.FC = () => {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     if (!textToSend) setInputText('');
 
-    // Simulate smart GAA gear response
     setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      const lower = content.toLowerCase();
-      let replyText = CHAT_KNOWLEDGE_BASE['default'];
 
-      if (lower.includes('wet') || lower.includes('rain') || lower.includes('weather') || lower.includes('water')) {
-        replyText = CHAT_KNOWLEDGE_BASE['wet'];
-      } else if (lower.includes('size') || lower.includes('measure') || lower.includes('fit') || lower.includes('hand')) {
-        replyText = CHAT_KNOWLEDGE_BASE['size'];
-      } else if (lower.includes('club') || lower.includes('bulk') || lower.includes('discount') || lower.includes('code') || lower.includes('team')) {
-        replyText = CHAT_KNOWLEDGE_BASE['club'];
-      } else if (lower.includes('deliver') || lower.includes('shipping') || lower.includes('dispatch') || lower.includes('dpd') || lower.includes('post')) {
-        replyText = CHAT_KNOWLEDGE_BASE['delivery'];
-      } else if (lower.includes('wash') || lower.includes('care') || lower.includes('clean') || lower.includes('dry')) {
-        replyText = CHAT_KNOWLEDGE_BASE['care'];
-      } else if (lower.includes('contact') || lower.includes('phone') || lower.includes('email')) {
-        replyText = CHAT_KNOWLEDGE_BASE['contact'];
+    // Format conversational history for multi-turn AI context
+    const historyPayload = updatedMessages
+      .filter((m) => m.id !== 'msg-1') // skip default opening welcome in history
+      .slice(0, -1) // prior conversation turns
+      .map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        text: m.text,
+      }));
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: content.trim(),
+          history: historyPayload,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Chat API error: ${res.status}`);
       }
+
+      const data = await res.json();
+      const replyText = data.reply || "Dia duit! How else can I assist you with your OCI Sports gear?";
 
       const botMsg: ChatMessage = {
         id: `support-${Date.now()}`,
         sender: 'support',
         text: replyText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickReplies: ['Check Sizing Calculator', 'View Apex Gold Gloves', 'Track My Order']
       };
 
       setMessages((prev) => [...prev, botMsg]);
-    }, 850);
+    } catch (err) {
+      console.warn('Chat API fetch error:', err);
+      const fallbackMsg: ChatMessage = {
+        id: `support-${Date.now()}`,
+        sender: 'support',
+        text: "I want to make sure I give you completely accurate information, but I'm having a brief connection hitch with our gear server. Please feel free to email our team directly at contactocisports@gmail.com and we'll be happy to help!",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
@@ -145,7 +162,7 @@ export const LiveChatWidget: React.FC = () => {
                     className={`p-3 rounded-2xl text-xs leading-relaxed ${
                       msg.sender === 'user'
                         ? 'bg-[#d4af37] text-black font-semibold rounded-br-none'
-                        : 'bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-bl-none'
+                        : 'bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-bl-none whitespace-pre-line'
                     }`}
                   >
                     {msg.text}
@@ -161,7 +178,7 @@ export const LiveChatWidget: React.FC = () => {
                       <button
                         key={idx}
                         onClick={() => handleSendMessage(qr)}
-                        className="text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-[#d4af37] hover:text-black text-zinc-300 border border-zinc-800 transition-colors"
+                        className="text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-[#d4af37] hover:text-black text-zinc-300 border border-zinc-800 transition-colors cursor-pointer"
                       >
                         {qr}
                       </button>

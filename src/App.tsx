@@ -150,12 +150,6 @@ export default function App() {
       addToast('Promo Applied', '10% Locker Room discount applied');
       return true;
     }
-    if (clean === 'GAACLUB20') {
-      setAppliedPromo('GAACLUB20');
-      setDiscountPercentage(20);
-      addToast('Club Code Applied', '20% GAA Club discount applied');
-      return true;
-    }
     return false;
   };
 

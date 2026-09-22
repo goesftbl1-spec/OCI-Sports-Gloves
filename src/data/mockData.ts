@@ -116,7 +116,6 @@ export const FAQS = [
 export const CHAT_KNOWLEDGE_BASE: Record<string, string> = {
   wet: 'The ELITE 2.0 GLOVES feature an all-weather contact grip designed specifically for wet Irish conditions, muck, and rain. The wetter the ball gets, the more friction the contact surface generates.',
   size: 'We offer sizes S, M, and L. If you prefer a snug second-skin match fit, choose your exact hand measurement size. Size M is our standard adult fit.',
-  club: 'Use code GAACLUB20 at checkout for 20% off team/club bulk orders of 10+ pairs!',
   delivery: 'Orders are shipped from Ireland via An Post Tracked & DPD 24h Express. Orders placed before 2 PM dispatch same-day.',
   care: 'Wash gently in lukewarm water after muck or wet pitch games. Never dry on hot radiators as this will dry out the grip.',
   contact: 'You can email our team directly at contactocisports@gmail.com anytime. We respond within a few hours!',

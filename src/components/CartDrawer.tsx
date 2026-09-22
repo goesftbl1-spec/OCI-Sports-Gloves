@@ -54,7 +54,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       setPromoSuccess(`Applied! ${promoInput.toUpperCase()} discount active`);
       setPromoInput('');
     } else {
-      setPromoError('Invalid code. Try OCI10 or GAACLUB20');
+      setPromoError('Invalid promo code. Try OCI10');
     }
   };
 

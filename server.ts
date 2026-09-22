@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -30,7 +31,6 @@ const CANONICAL_CATALOG: Record<string, CanonicalProduct> = {
 };
 
 const VALID_PROMOS: Record<string, number> = {
-  GAACLUB20: 20, // 20% team/club discount
   OCI10: 10,     // 10% welcome discount
 };
 
@@ -887,6 +887,422 @@ app.delete("/api/orders", checkAdminAuth, (req, res) => {
   const filePath = path.resolve(process.cwd(), "data/orders.json");
   fs.writeFileSync(filePath, "[]", "utf-8");
   res.json({ success: true, orders: [] });
+});
+
+// ==========================================
+// 7. Secure Customer Order Status Lookup API
+// ==========================================
+app.post("/api/customer/order-status", (req, res) => {
+  const { orderId, emailOrPhone } = req.body || {};
+  if (!orderId || !emailOrPhone) {
+    return res.status(400).json({
+      error: "Please provide both your Order Reference ID (e.g. OCI-...) and the checkout email or phone number.",
+    });
+  }
+
+  const cleanOrderId = String(orderId).trim().toUpperCase().replace(/^#/, "");
+  const cleanContact = String(emailOrPhone).trim().toLowerCase().replace(/\s+/g, "");
+
+  const filePath = path.resolve(process.cwd(), "data/orders.json");
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({
+      error: "No matching order found. Please check your order reference and contact details.",
+    });
+  }
+
+  try {
+    const orders: any[] = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const match = orders.find((o) => {
+      const ordIdMatches = o.orderId && o.orderId.toUpperCase() === cleanOrderId;
+      if (!ordIdMatches) return false;
+
+      const orderEmail = (o.shippingDetails?.email || "").toLowerCase().trim();
+      const orderPhone = (o.shippingDetails?.phone || "").replace(/\s+/g, "");
+
+      return (
+        orderEmail === cleanContact ||
+        (cleanContact.length >= 6 && (orderPhone.includes(cleanContact) || cleanContact.includes(orderPhone)))
+      );
+    });
+
+    if (!match) {
+      return res.status(404).json({
+        error: "No matching order found with that Order Reference ID and contact details. Please check the confirmation email sent from contactocisports@gmail.com.",
+      });
+    }
+
+    // Return strictly customer-safe order delivery status
+    return res.json({
+      success: true,
+      order: {
+        orderId: match.orderId,
+        date: match.createdAt,
+        status: "Confirmed & Prepared for Dispatch",
+        deliveryMethod: match.deliveryMethod || "An Post Tracked",
+        county: match.shippingDetails?.county || "Ireland",
+        itemsCount: match.items?.length || 1,
+        items: (match.items || []).map((it: any) => ({
+          name: it.product?.name || "ELITE 2.0 GLOVES",
+          size: it.selectedSize || "Standard",
+          quantity: it.quantity || 1,
+          personalization: it.personalization?.enabled ? it.personalization.text : null,
+        })),
+      },
+    });
+  } catch {
+    return res.status(500).json({ error: "Failed to read order status." });
+  }
+});
+
+// ==========================================
+// 8. AI Customer Support Chat (Gemini + Local Intelligence)
+// ==========================================
+let aiClient: GoogleGenAI | null = null;
+function getAIClient(): GoogleGenAI | null {
+  if (!aiClient && process.env.GEMINI_API_KEY) {
+    aiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
+
+const CHAT_SYSTEM_INSTRUCTION = `
+You are the official AI Customer Support Assistant for OCI SPORTS (website: ocisports.com), the premier Irish Gaelic football equipment brand specializing in high-performance match gloves.
+
+STORE KNOWLEDGE BASE (GROUND TRUTH - NEVER CONTRADICT OR INVENT OUTSIDE OF THIS):
+1. BRAND & IDENTITY:
+- Name: OCI SPORTS
+- Slogan: "Any Condition. We Have You Covered."
+- Contact Email: contactocisports@gmail.com
+- Location: Dispatched directly from Ireland across all 32 counties.
+
+2. PRODUCT CATALOG:
+- Product: "ELITE 2.0 GLOVES"
+- Current Sale Price: €14.99 (Reduced from regular €20.00).
+- Optional Custom Personalization: Custom Name & Number printing on wrist strap for +€4.00.
+- Available Sizes:
+  * Size S (Hand length 16.5 - 18.0 cm, palm width 7.5 - 8.2 cm) — Suitable for teens and small adult hands.
+  * Size M (Hand length 18.1 - 19.5 cm, palm width 8.3 - 9.0 cm) — Standard adult fit (most popular size).
+  * Size L (Hand length 19.6 - 21.0 cm, palm width 9.1 - 10.0 cm) — Large adult fit / longer fingers.
+- Colorway: Blackout Stealth (matte black with white 3D silicone grip accents and gold details).
+- Cut: Negative Cut (internal stitching for a second-skin feel and ultimate ball control).
+- Palm Latex: 3mm High-Tack All-Weather German Contact Palm.
+- Weather Performance & Waterproofing: Engineered for rain, muck, snow, or heat. The contact palm moisture-activates — wet conditions and rain actually increase friction and grip against the leather of a size 5 O'Neills football! The backhand is breathable neoprene to allow hand agility and airflow.
+- Player Reviews: 4.7/5 stars from verified GAA club players (Louth, Galway, Kerry). Players praise durability through tough championship campaigns.
+- Glove Care: Rinse gently in lukewarm water after muddy matches. Air dry naturally at room temperature. NEVER dry on hot radiators or in tumble dryers, as direct heat degrades the latex foam.
+- Note: OCI Sports currently specializes exclusively in Gaelic football gloves. We do not sell boots, jerseys, or helmets.
+
+3. SHIPPING & DELIVERY:
+- Ships to: ALL 32 counties of Ireland (Galway, Dublin, Cork, Kerry, Mayo, Donegal, etc.) and UK / Worldwide.
+- Same-Day Dispatch: Orders placed before 2:00 PM (Monday-Friday) dispatch SAME DAY from Ireland.
+- Standard Shipping: An Post Tracked (1–2 business days across Ireland) — €3.99.
+- Express Shipping: DPD 24h GAA Matchday Express (next business day) — €6.99.
+- Tracking: Tracking links are sent to the customer's email as soon as the package is scanned by An Post or DPD.
+
+4. PAYMENT METHODS:
+- Accepted: Debit and Credit cards (Visa, Mastercard, Maestro) and PayPal.
+- Guest Checkout: Customers DO NOT need a PayPal account to order; they can easily pay using any standard debit or credit card at checkout.
+
+5. HOW TO ORDER:
+- Select your glove size (S, M, or L) on the product page.
+- (Optional) Add your custom name/number personalization.
+- Click "Add to Match Bag".
+- Open your cart drawer, apply any promo code (e.g. OCI10), and click "Proceed to Checkout".
+- Fill in your delivery address, Eircode, and phone number, and complete payment via Card or PayPal.
+
+6. RETURNS & REFUNDS:
+- 30-Day Match Guarantee: Unworn gloves with original tags attached can be returned or exchanged for another size within 30 days of delivery.
+- Return inquiries: Email contactocisports@gmail.com.
+- Custom personalized gloves (printed with a player's name/number) cannot be returned for size exchanges unless defective.
+
+7. ACTIVE DISCOUNT CODES:
+- "OCI10": 10% off welcome code at checkout.
+- STRICT RULE ON FORMER DISCOUNT: The old "Club Bulk 20% Off" / "GAACLUB20" discount has been completely discontinued and removed. NEVER mention, offer, or validate "GAACLUB20" or "Club Bulk 20% off". If asked for a discount, provide only the active welcome code "OCI10".
+
+8. ORDER TRACKING & ORDER STATUS:
+- If a customer asks "Where is my order?" or wants order tracking:
+  * Inform them that orders dispatch same-day before 2 PM with An Post Tracked (1-2 days) or DPD Express, and tracking details were emailed to their checkout email address.
+  * If they want their order checked in chat, ask them to provide their Order Reference ID (e.g. OCI-...) and their email address or phone number used at checkout.
+
+9. PRIVACY & SECURITY:
+- NEVER reveal server credentials, API keys, ADMIN_PASSCODE, PayPal secret keys, or internal file paths.
+- NEVER disclose one customer's private order, full address, or details to another person.
+- If you don't know something or if a user asks about something outside this store's scope, politely state that you do not have that information and suggest emailing contactocisports@gmail.com.
+- Never invent policies, unlisted products, fake discounts, or false delivery timelines.
+
+TONE & STYLE:
+- Warm, enthusiastic, knowledgeable Irish GAA tone (e.g. occasional friendly Irish phrasing like "Dia duit", "fair play", "sound", "matchday ready").
+- Concise, scannable, direct, and helpful.
+`;
+
+function generateSmartLocalResponse(
+  message: string,
+  history: Array<{ role: string; text: string }> = []
+): string {
+  const q = message.toLowerCase().trim();
+
+  // 1. Order Status Check if Order ID is present
+  const orderIdMatch = message.match(/OCI-?[0-9]+/i);
+  if (orderIdMatch) {
+    const rawId = orderIdMatch[0].toUpperCase().replace(/^OCI([0-9])/, "OCI-$1");
+    // Look for email or phone in text or history
+    const allText = [message, ...history.map((h) => h.text)].join(" ");
+    const emailMatch = allText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const phoneMatch = allText.match(/(?:\+?353|0)?[0-9]{7,10}/);
+
+    const filePath = path.resolve(process.cwd(), "data/orders.json");
+    if (fs.existsSync(filePath)) {
+      try {
+        const orders: any[] = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+        const found = orders.find(
+          (o) => o.orderId && o.orderId.toUpperCase().replace(/^#/, "") === rawId
+        );
+        if (found) {
+          const ordEmail = (found.shippingDetails?.email || "").toLowerCase();
+          const ordPhone = (found.shippingDetails?.phone || "").replace(/\s+/g, "");
+          const userContact = (emailMatch ? emailMatch[0].toLowerCase() : "") || (phoneMatch ? phoneMatch[0].replace(/\s+/g, "") : "");
+
+          if (userContact && (ordEmail.includes(userContact) || ordPhone.includes(userContact) || userContact.includes(ordPhone))) {
+            const itemsDesc = (found.items || [])
+              .map((i: any) => `${i.quantity}x ${i.product?.name || "ELITE 2.0"} (Size ${i.selectedSize})`)
+              .join(", ");
+            return `I found your order **${found.orderId}**! It was placed on ${found.createdAt} for **${itemsDesc}** via ${found.deliveryMethod || "An Post Tracked"}.\n\nYour order is confirmed and prepared for dispatch. Tracking notifications are sent directly to ${found.shippingDetails.email}.`;
+          } else {
+            return `I see order **${rawId}** in our system! For your privacy and security, please provide the **email address** or **phone number** used at checkout to view the order details.`;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Order Tracking general question
+  if (
+    q.includes("where is my order") ||
+    q.includes("track my order") ||
+    q.includes("track order") ||
+    q.includes("tracking") ||
+    (q.includes("where") && q.includes("order")) ||
+    (q.includes("my") && q.includes("order") && (q.includes("status") || q.includes("lookup")))
+  ) {
+    return "All orders are dispatched from Ireland with **An Post Tracked** (1–2 days) or **DPD 24h Express**. As soon as your parcel is scanned, tracking updates are automatically sent to your email from **contactocisports@gmail.com**.\n\nIf you would like me to check your order status right here, please reply with your **Order Reference ID** (e.g., OCI-...) and the **Email address** or **Phone number** you used at checkout!";
+  }
+
+  // 3. Price / Cost
+  if (
+    q.includes("how much") ||
+    q.includes("price") ||
+    q.includes("cost") ||
+    q.includes("pricing") ||
+    q.includes("how much are the gloves")
+  ) {
+    return "Our **ELITE 2.0 GLOVES** are currently on matchday sale for **€14.99** (regular retail €20.00)!\n\nIf you would like custom player personalization (name or number laser-printed on the wrist strap), that is available for an additional €4.00.";
+  }
+
+  // 4. Galway / County / Location Shipping
+  if (
+    q.includes("galway") ||
+    q.includes("cork") ||
+    q.includes("dublin") ||
+    q.includes("kerry") ||
+    q.includes("mayo") ||
+    q.includes("donegal") ||
+    q.includes("limerick") ||
+    q.includes("belfast") ||
+    q.includes("ship to") ||
+    q.includes("deliver to") ||
+    q.includes("location") ||
+    q.includes("counties")
+  ) {
+    return "Yes! We ship to **all 32 counties across Ireland** (including Galway, Dublin, Cork, Kerry, Mayo, and beyond), as well as the UK and worldwide.\n\n• **An Post Tracked**: 1–2 business days (€3.99)\n• **DPD 24h GAA Matchday Express**: Next business day (€6.99)\n\nOrders placed before 2:00 PM dispatch same-day from Ireland!";
+  }
+
+  // 5. Sizes / Sizing
+  if (
+    q.includes("what sizes") ||
+    q.includes("size") ||
+    q.includes("sizing") ||
+    q.includes("measure") ||
+    q.includes("fit") ||
+    q.includes("small") ||
+    q.includes("medium") ||
+    q.includes("large")
+  ) {
+    return "We offer three match-calibrated sizes for the **ELITE 2.0 GLOVES**:\n\n• **Size S**: Hand length 16.5 – 18.0 cm (ideal for teens and small adult hands)\n• **Size M**: Hand length 18.1 – 19.5 cm (standard adult fit — our most popular size)\n• **Size L**: Hand length 19.6 – 21.0 cm (large adult / longer fingers)\n\nYou can also click the **Hand Sizing Guide** button in our store for our interactive hand measurement calculator!";
+  }
+
+  // 6. How to order
+  if (
+    q.includes("how do i order") ||
+    q.includes("how to order") ||
+    q.includes("how to buy") ||
+    q.includes("how can i order") ||
+    q.includes("place order") ||
+    q.includes("purchase")
+  ) {
+    return "Ordering is quick and secure:\n1. Choose your glove size (**S**, **M**, or **L**) on the product page.\n2. *(Optional)* Add your custom name or squad number personalization.\n3. Click **Add to Match Bag**.\n4. Open your cart and click **Proceed to Checkout**.\n5. Enter your delivery address and pay securely with Debit/Credit Card or PayPal!";
+  }
+
+  // 7. Returns / Refunds
+  if (
+    q.includes("return") ||
+    q.includes("refund") ||
+    q.includes("exchange") ||
+    q.includes("send back") ||
+    q.includes("guarantee") ||
+    q.includes("warranty")
+  ) {
+    return "We offer a **30-Day Match Satisfaction Guarantee**! If your gloves are unworn and in their original packaging with tags intact, you can return them for a size exchange or a full refund.\n\nSimply email our team at **contactocisports@gmail.com** and we will arrange your return. *(Please note that custom personalized gloves with printed names/numbers cannot be returned for size exchanges unless defective).*";
+  }
+
+  // 8. Delivery time / Shipping speed
+  if (
+    q.includes("how long does delivery take") ||
+    q.includes("how long") ||
+    q.includes("when will") ||
+    q.includes("delivery take") ||
+    q.includes("dispatch time") ||
+    q.includes("shipping time")
+  ) {
+    return "Orders placed before **2:00 PM (Monday–Friday) dispatch same-day** from Ireland!\n\n• **An Post Tracked**: 1–2 business days across Ireland (€3.99)\n• **DPD 24h Matchday Express**: Next business day delivery (€6.99)\n\nYou will receive an email with your official tracking number as soon as your package is dispatched.";
+  }
+
+  // 9. Payment Methods
+  if (
+    q.includes("payment") ||
+    q.includes("pay") ||
+    q.includes("card") ||
+    q.includes("credit card") ||
+    q.includes("debit card") ||
+    q.includes("paypal") ||
+    q.includes("apple pay") ||
+    q.includes("google pay")
+  ) {
+    return "We accept all major **Debit & Credit cards** (Visa, Mastercard, Maestro) as well as **PayPal**.\n\nYou do **not** need a PayPal account to purchase — our checkout supports direct guest debit/credit card payments safely and securely.";
+  }
+
+  // 10. Waterproof / Rain / Weather
+  if (
+    q.includes("waterproof") ||
+    q.includes("rain") ||
+    q.includes("wet") ||
+    q.includes("weather") ||
+    q.includes("mud") ||
+    q.includes("muck") ||
+    q.includes("grip")
+  ) {
+    return "The **ELITE 2.0 GLOVES** are specifically engineered for wet Irish weather and muddy pitches! The **3mm German Contact Latex Palm** is moisture-activated — meaning rain and surface dampness actually increase friction and grip against leather O'Neills match balls.\n\nThe breathable thermal-flex neoprene body keeps your hands nimble and comfortable in rain, snow, or heat.";
+  }
+
+  // 11. Discounts / Promo codes
+  if (
+    q.includes("discount") ||
+    q.includes("promo") ||
+    q.includes("code") ||
+    q.includes("coupon") ||
+    q.includes("voucher")
+  ) {
+    return "You can use code **OCI10** at checkout for **10% off** your order! Simply enter **OCI10** in the cart drawer promo field before proceeding to checkout.";
+  }
+
+  // 12. Glove Care & Washing
+  if (
+    q.includes("wash") ||
+    q.includes("care") ||
+    q.includes("clean") ||
+    q.includes("dry") ||
+    q.includes("maintain")
+  ) {
+    return "To keep your contact latex gripping at 100%:\n1. Rinse gently in lukewarm water after muddy games to clear away dirt.\n2. Gently press moisture out from fingers to wrist — do not wring or twist.\n3. Air dry naturally at room temperature. **Never place them on hot radiators or in tumble dryers**, as direct heat will dry out the latex.";
+  }
+
+  // 13. Contact
+  if (
+    q.includes("contact") ||
+    q.includes("email") ||
+    q.includes("phone") ||
+    q.includes("support") ||
+    q.includes("speak to")
+  ) {
+    return "You can contact our team anytime directly at **contactocisports@gmail.com**. We reply promptly to all club, player, and parent inquiries!";
+  }
+
+  // 14. Friendly Greetings
+  if (
+    q === "hi" ||
+    q === "hello" ||
+    q === "hey" ||
+    q === "dia duit" ||
+    q.startsWith("hello") ||
+    q.startsWith("hi ") ||
+    q.startsWith("hey ")
+  ) {
+    return "Dia duit! Great to have you at OCI Sports. How can I help you gear up today? You can ask me about sizing (S/M/L), our all-weather wet grip, delivery times across Ireland, or order tracking!";
+  }
+
+  // 15. Unknown / Outside Knowledge
+  return "I want to make sure I give you completely accurate information, but I don't have those specific details on hand. Please reach out to our team directly at **contactocisports@gmail.com** and we'll be delighted to assist you!";
+}
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    const trimmedMsg = message.trim();
+    const safeHistory: Array<{ role: string; text: string }> = Array.isArray(history)
+      ? history.filter((h) => h && typeof h.text === "string")
+      : [];
+
+    // 1. Try Gemini API first if configured
+    const ai = getAIClient();
+    if (ai) {
+      try {
+        const contents = safeHistory.map((m) => ({
+          role: m.role === "user" ? "user" : "model",
+          parts: [{ text: m.text }],
+        }));
+
+        contents.push({
+          role: "user",
+          parts: [{ text: trimmedMsg }],
+        });
+
+        const geminiRes = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents,
+          config: {
+            systemInstruction: CHAT_SYSTEM_INSTRUCTION,
+            temperature: 0.5,
+            maxOutputTokens: 600,
+          },
+        });
+
+        const reply = geminiRes.text;
+        if (reply && reply.trim()) {
+          return res.json({ reply: reply.trim() });
+        }
+      } catch (geminiErr: any) {
+        console.warn("Gemini API call failed, falling back to local intelligence:", geminiErr?.message || geminiErr);
+      }
+    }
+
+    // 2. Fallback to smart local semantic answering engine
+    const localReply = generateSmartLocalResponse(trimmedMsg, safeHistory);
+    return res.json({ reply: localReply });
+  } catch (err: any) {
+    console.error("Chat handler error:", err);
+    return res.json({
+      reply: "Dia duit! I'm here to help with your OCI Sports gloves, sizing, shipping, or returns. How can I help you today?",
+    });
+  }
 });
 
 // ==========================================

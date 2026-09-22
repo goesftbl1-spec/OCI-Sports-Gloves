@@ -129,7 +129,6 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, o
             <ul className="space-y-2 text-xs text-zinc-400">
               <li><span className="text-zinc-200">Ireland:</span> An Post & DPD 24h Express</li>
               <li><span className="text-zinc-200">UK & Worldwide:</span> Tracked Air Express</li>
-              <li><span className="text-[#d4af37] font-semibold">Club Code:</span> GAACLUB20 (20% Off 10+ Pairs)</li>
               <li>
                 <span className="text-zinc-200">Email:</span>{' '}
                 <a href="mailto:contactocisports@gmail.com" className="text-white hover:text-[#d4af37] transition-colors underline decoration-zinc-700">
