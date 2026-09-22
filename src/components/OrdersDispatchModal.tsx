@@ -15,7 +15,10 @@ import {
   ArrowRight,
   LogOut,
   Download,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import { Order } from '../types';
 import { formatPrice } from '../utils/formatters';
@@ -47,6 +50,14 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'orders' | 'gateway'>('orders');
+  const [gatewayConfig, setGatewayConfig] = useState<{
+    configured: boolean;
+    clientId: string | null;
+    mode: string;
+    currency: string;
+    contactEmail: string;
+  } | null>(null);
 
   const getSavedPasscode = (): string => {
     try {
@@ -153,6 +164,10 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
   useEffect(() => {
     if (isOpen && isAuthenticated) {
       loadOrders();
+      fetch('/api/paypal/config')
+        .then((r) => r.json())
+        .then((data) => setGatewayConfig(data))
+        .catch(() => {});
     }
   }, [isOpen, isAuthenticated]);
 
@@ -354,6 +369,137 @@ Phone: ${order.shippingDetails.phone}`;
               </div>
             </div>
 
+            {/* Tab navigation */}
+            <div className="flex border-b border-zinc-800 mb-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('orders')}
+                className={`pb-2.5 px-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border-b-2 flex items-center gap-2 ${
+                  activeTab === 'orders'
+                    ? 'border-[#d4af37] text-white'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                <span>Orders &amp; Dispatch ({orders.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('gateway')}
+                className={`pb-2.5 px-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border-b-2 flex items-center gap-2 ${
+                  activeTab === 'gateway'
+                    ? 'border-[#d4af37] text-white'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>PayPal Gateway Status</span>
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    gatewayConfig?.configured ? 'bg-emerald-400' : 'bg-amber-400'
+                  }`}
+                  title={gatewayConfig?.configured ? 'Active' : 'Pending API Keys'}
+                />
+              </button>
+            </div>
+
+            {activeTab === 'gateway' ? (
+              /* TAB: PAYPAL PAYMENT GATEWAY CONFIGURATION & STATUS */
+              <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+                {gatewayConfig?.configured ? (
+                  <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/50 flex items-start gap-3">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-bold text-emerald-300">PayPal Gateway Connected &amp; Live</h4>
+                      <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
+                        Your PayPal REST API is active in <strong>{gatewayConfig.mode.toUpperCase()}</strong> mode. Customer card and PayPal checkouts will process directly into your account.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-amber-950/30 border border-amber-500/50 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-bold text-amber-300">PayPal API Keys Pending Setup</h4>
+                      <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
+                        To receive customer payments from debit/credit cards and PayPal directly into your account (<strong>contactocisports@gmail.com</strong>), your PayPal Client ID and Secret need to be added to Settings &gt; Secrets.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Merchant Gateway Configuration
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                      <span className="text-zinc-500 block text-[10px] uppercase font-bold">Recipient Account</span>
+                      <span className="font-bold text-white">contactocisports@gmail.com</span>
+                      <span className="text-zinc-400 block text-[11px] mt-0.5">PayPal Handle: @goesftbl</span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                      <span className="text-zinc-500 block text-[10px] uppercase font-bold">Gateway Status</span>
+                      <span className={`font-bold ${gatewayConfig?.configured ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {gatewayConfig?.configured ? `Connected (${gatewayConfig.mode.toUpperCase()})` : 'Pending Credentials'}
+                      </span>
+                      <span className="text-zinc-400 block text-[11px] mt-0.5">Currency: EUR (€)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]">
+                      How To Connect Your Live PayPal Account
+                    </span>
+                    <a
+                      href="https://developer.paypal.com/dashboard/applications"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-[#60c5ff] hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <span>Open PayPal Developer</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  <ol className="list-decimal list-inside space-y-2 text-zinc-300 text-[11px] leading-relaxed">
+                    <li>
+                      Log into{' '}
+                      <a
+                        href="https://developer.paypal.com/dashboard/applications"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#60c5ff] underline"
+                      >
+                        developer.paypal.com/dashboard/applications
+                      </a>{' '}
+                      using your PayPal business login (<strong>contactocisports@gmail.com</strong>).
+                    </li>
+                    <li>
+                      Under <strong>Apps &amp; Credentials</strong>, toggle to <strong>Live</strong> (for real money) and click <strong>Create App</strong> (name it <em>OCI Sports</em>).
+                    </li>
+                    <li>
+                      Copy the <strong>Client ID</strong> and <strong>Secret Key</strong> generated by PayPal.
+                    </li>
+                    <li>
+                      In Google AI Studio, open the <strong>Settings &gt; Secrets</strong> menu (or project environment variables) and set:
+                      <div className="mt-1.5 p-2.5 rounded bg-black font-mono text-[10px] text-zinc-300 border border-zinc-800 leading-normal">
+                        PAYPAL_MODE="live"<br />
+                        PAYPAL_CLIENT_ID="your_live_client_id_here"<br />
+                        PAYPAL_CLIENT_SECRET="your_live_secret_here"
+                      </div>
+                    </li>
+                    <li>
+                      In your PayPal Business Account (<strong>Settings &gt; Website Payments</strong>), confirm that <strong>"PayPal Account Optional"</strong> is turned <strong>ON</strong> so buyers can pay directly by Debit/Credit card without signing into PayPal.
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Notification sync bar */}
             <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-300 mb-5 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -509,6 +655,8 @@ Phone: ${order.shippingDetails.phone}`;
                 ))
               )}
             </div>
+          </>
+        )}
 
             {/* Footer Actions */}
             <div className="flex items-center justify-between pt-4 mt-5 border-t border-zinc-850 text-xs">

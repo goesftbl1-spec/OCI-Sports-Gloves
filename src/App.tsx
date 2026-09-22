@@ -315,6 +315,7 @@ export default function App() {
         appliedPromo={appliedPromo}
         onOrderCompleted={handleOrderCompleted}
         onClearCart={() => setCartItems([])}
+        onOpenStaffPortal={() => setIsOrdersModalOpen(true)}
       />
 
       {/* Orders & Dispatch Hub for Store Manager */}

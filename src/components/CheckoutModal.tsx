@@ -44,6 +44,7 @@ interface CheckoutModalProps {
   appliedPromo: string | null;
   onOrderCompleted: (order: Order) => void;
   onClearCart: () => void;
+  onOpenStaffPortal?: () => void;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -55,6 +56,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   appliedPromo,
   onOrderCompleted,
   onClearCart,
+  onOpenStaffPortal,
 }) => {
   if (!isOpen) return null;
 
@@ -751,57 +753,50 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
             ) : (
-              /* Honest, Zero-Fake Configuration Guide */
-              <div className="p-5 rounded-2xl bg-zinc-950 border border-zinc-700/80 space-y-4">
+              /* Professional Customer Notification (Gateway Initializing) */
+              <div className="p-5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#0070ba]/20 border border-[#0070ba]/50 flex items-center justify-center text-[#0070ba] shrink-0 font-black italic text-base">
-                    P
+                  <div className="w-10 h-10 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] shrink-0 font-black">
+                    <CreditCard className="w-5 h-5 text-[#d4af37]" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-sm font-black text-white uppercase tracking-tight font-['Outfit']">
-                      PayPal Credentials Required To Process Customer Payments
+                      Direct Card &amp; PayPal Checkout
                     </h3>
-                    <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                      To direct customer debit/credit card and PayPal funds into your PayPal account (<strong>contactocisports@gmail.com</strong>),
-                      set your PayPal REST API credentials. Per your security rules, no fake checkout or demo orders are simulated.
+                    <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                      Our direct payment gateway is currently completing connection with our merchant processor. To complete your order immediately for same-day dispatch across Ireland, please contact our matchday desk:
                     </p>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2 text-xs">
-                  <div className="font-bold text-[#d4af37] uppercase tracking-wider text-[11px]">
-                    How to connect your PayPal Business account:
+                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-zinc-300">
+                    <Mail className="w-4 h-4 text-[#d4af37]" />
+                    <a
+                      href="mailto:contactocisports@gmail.com"
+                      className="font-bold text-white hover:text-[#d4af37] underline transition-colors"
+                    >
+                      contactocisports@gmail.com
+                    </a>
                   </div>
-                  <ol className="list-decimal list-inside space-y-1.5 text-zinc-300 text-[11px] leading-relaxed">
-                    <li>
-                      Log into{' '}
-                      <a
-                        href="https://developer.paypal.com/dashboard/applications"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#60c5ff] underline inline-flex items-center gap-1"
-                      >
-                        developer.paypal.com/dashboard/applications
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </li>
-                    <li>Create an app under <strong>Apps &amp; Credentials</strong> for OCI Sports.</li>
-                    <li>
-                      Copy the <strong>Client ID</strong> and <strong>Secret Key</strong>.
-                    </li>
-                    <li>
-                      Add them to your project's <code>.env</code> file (or AI Studio Settings):
-                      <div className="mt-1 p-2 rounded bg-black font-mono text-[10px] text-zinc-300 border border-zinc-800">
-                        PAYPAL_MODE="live" (or "sandbox" for test mode)<br />
-                        PAYPAL_CLIENT_ID="your_client_id_here"<br />
-                        PAYPAL_CLIENT_SECRET="your_client_secret_here"
-                      </div>
-                    </li>
-                    <li>
-                      In your PayPal Business Account (<strong>Settings &gt; Website Payments</strong>), make sure <strong>"PayPal Account Optional"</strong> is turned <strong>ON</strong> so customers can pay directly with Debit/Credit cards without creating an account.
-                    </li>
-                  </ol>
+                  <span className="text-[11px] text-zinc-400">Direct An Post &amp; DPD Express Fulfillment</span>
                 </div>
+
+                {onOpenStaffPortal && (
+                  <div className="pt-2 border-t border-zinc-900 flex justify-center sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenStaffPortal();
+                      }}
+                      className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1.5 cursor-pointer underline transition-colors"
+                    >
+                      <Lock className="w-3 h-3 text-zinc-500" />
+                      <span>Store Owner? Manage Payment Gateway in Staff Portal</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
