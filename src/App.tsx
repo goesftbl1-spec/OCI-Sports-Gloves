@@ -14,6 +14,7 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
 import { NotificationToast, ToastMessage } from './components/NotificationToast';
 import { OrdersDispatchModal } from './components/OrdersDispatchModal';
+import { Lock } from 'lucide-react';
 
 import { SINGLE_PRODUCT, REVIEWS } from './data/mockData';
 import { Product, CartItem, GloveSize, Currency, Review, Order } from './types';
@@ -44,6 +45,25 @@ export default function App() {
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  // Owner shortcut: Ctrl+Shift+O (or Cmd+Shift+O) or URL param ?dispatch=1 / ?admin=1 to toggle protected Orders & Dispatch Hub
+  useEffect(() => {
+    // 1. Check URL parameters for direct mobile bookmark access (e.g. yourstore.com/?dispatch=1)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('dispatch') === '1' || urlParams.get('admin') === '1' || urlParams.get('portal') === '1') {
+      setIsOrdersModalOpen(true);
+    }
+
+    // 2. Keyboard shortcut for desktop
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setIsOrdersModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Pop-up Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -241,9 +261,11 @@ export default function App() {
             <span className="text-zinc-600">•</span>
             <button
               onClick={() => setIsOrdersModalOpen(true)}
-              className="text-[#d4af37] hover:text-[#f5df88] font-bold underline decoration-[#d4af37]/40 cursor-pointer"
+              className="text-zinc-500 hover:text-zinc-300 py-1.5 px-2 -my-1 rounded-md flex items-center gap-1 cursor-pointer transition-colors active:bg-zinc-800"
+              title="Owner Dispatch Portal"
             >
-              Orders & Dispatch Hub
+              <Lock className="w-3 h-3 text-zinc-500" />
+              <span>Staff Portal</span>
             </button>
           </div>
 

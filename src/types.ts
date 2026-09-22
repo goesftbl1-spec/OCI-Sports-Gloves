@@ -84,15 +84,17 @@ export interface ShippingDetails {
 }
 
 export interface PaymentDetails {
-  paymentMethod: 'paypal' | 'card' | 'apple_pay' | 'google_pay' | 'revolut';
-  cardNumber: string;
-  cardExpiry: string;
-  cardCvc: string;
-  cardName: string;
+  paymentMethod: 'paypal' | 'card' | 'apple_pay' | 'google_pay';
+  transactionId?: string;
+  payerEmail?: string;
 }
 
 export interface Order {
   orderId: string;
+  paypalOrderId?: string;
+  paypalTransactionId?: string;
+  status?: 'COMPLETED' | 'PENDING' | 'CANCELLED' | 'FAILED';
+  payerEmail?: string;
   createdAt: string;
   items: CartItem[];
   shippingCost: number;
