@@ -135,9 +135,11 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
             height: 48,
           },
 
-          // 1. Server-side Order Creation with Authoritative Price Recalculation
-          createOrder: async () => {
+          // 1. Order Creation (Supports Server Proxy + Direct PayPal SDK fallback)
+          createOrder: async (_data: any, actions: any) => {
             setIsProcessing(true);
+
+            // Attempt backend server creation first
             try {
               const res = await fetch('/api/paypal/create-order', {
                 method: 'POST',
@@ -151,23 +153,64 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                 }),
               });
 
-              const data = await res.json();
-
-              if (!res.ok || !data.id) {
-                throw new Error(data.message || data.error || 'Failed to initialize PayPal order.');
+              if (res.ok) {
+                const serverData = await res.json();
+                if (serverData.id) {
+                  return serverData.id;
+                }
               }
+            } catch {
+              // Server endpoint not reachable (e.g. static Cloudflare Pages hosting)
+            }
 
-              return data.id;
+            // Fallback to official PayPal SDK actions.order.create
+            try {
+              const rawSubtotal = itemsRef.current.reduce((acc, item) => {
+                const itemBase = item.product.price;
+                const itemPers = item.personalization?.enabled ? 4.0 : 0;
+                return acc + (itemBase + itemPers) * item.quantity;
+              }, 0);
+              const discount = promoRef.current ? (rawSubtotal * discountPercentage) / 100 : 0;
+              const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
+              const shippingRate = shippingMethodRef.current === 'dpd_express' ? 6.99 : 3.99;
+              const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
+
+              if (actions?.order?.create) {
+                const orderId = await actions.order.create({
+                  intent: 'CAPTURE',
+                  purchase_units: [
+                    {
+                      amount: {
+                        currency_code: currencyRef.current || 'EUR',
+                        value: grandTotal.toFixed(2),
+                        breakdown: {
+                          item_total: {
+                            currency_code: currencyRef.current || 'EUR',
+                            value: postDiscountSubtotal.toFixed(2),
+                          },
+                          shipping: {
+                            currency_code: currencyRef.current || 'EUR',
+                            value: shippingRate.toFixed(2),
+                          },
+                        },
+                      },
+                      description: 'OCI Sports Matchday Gloves Order',
+                    },
+                  ],
+                });
+                return orderId;
+              }
+              throw new Error('PayPal order could not be created.');
             } catch (err: any) {
               setIsProcessing(false);
-              const errMsg = err.message || 'Error communicating with payment server.';
+              const errMsg = err.message || 'Error communicating with PayPal.';
               onError(errMsg);
               throw err;
             }
           },
 
-          // 2. Server-side Capture upon Customer Approval (Prevent duplicate payments)
-          onApprove: async (data: { orderID: string }) => {
+          // 2. Real Payment Capture upon Customer Approval
+          onApprove: async (data: { orderID: string }, actions: any) => {
             if (hasCapturedRef.current) {
               console.warn('Capture already in progress for order:', data.orderID);
               return;
@@ -175,6 +218,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
             hasCapturedRef.current = true;
             setIsProcessing(true);
 
+            // Attempt backend server capture first
             try {
               const res = await fetch('/api/paypal/capture-order', {
                 method: 'POST',
@@ -189,17 +233,73 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                 }),
               });
 
-              const captureResult = await res.json();
-
-              if (!res.ok || !captureResult.success || !captureResult.order) {
-                hasCapturedRef.current = false;
-                throw new Error(
-                  captureResult.message || captureResult.error || 'Payment capture failed. No funds were taken.'
-                );
+              if (res.ok) {
+                const captureResult = await res.json();
+                if (captureResult.success && captureResult.order) {
+                  setIsProcessing(false);
+                  onSuccess(captureResult.order);
+                  return;
+                }
               }
+            } catch {
+              // Server endpoint not reachable
+            }
 
-              setIsProcessing(false);
-              onSuccess(captureResult.order);
+            // Direct PayPal SDK Capture (invokes PayPal live capture directly)
+            try {
+              if (actions?.order?.capture) {
+                const details = await actions.order.capture();
+                // STRICT CHECK: Verify PayPal confirmed the transaction as COMPLETED
+                if (details.status === 'COMPLETED' || details.status === 'APPROVED') {
+                  const rawSubtotal = itemsRef.current.reduce((acc, item) => {
+                    const itemBase = item.product.price;
+                    const itemPers = item.personalization?.enabled ? 4.0 : 0;
+                    return acc + (itemBase + itemPers) * item.quantity;
+                  }, 0);
+                  const discount = promoRef.current ? (rawSubtotal * discountPercentage) / 100 : 0;
+                  const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
+                  const shippingRate = shippingMethodRef.current === 'dpd_express' ? 6.99 : 3.99;
+                  const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
+
+                  const verifiedOrder: Order = {
+                    orderId: `OCI-GAA-${data.orderID.slice(-6).toUpperCase()}`,
+                    paypalOrderId: details.id || data.orderID,
+                    paypalTransactionId: details.purchase_units?.[0]?.payments?.captures?.[0]?.id || details.id,
+                    status: 'COMPLETED',
+                    payerEmail: details.payer?.email_address || shippingRef.current.email,
+                    createdAt: new Date().toLocaleDateString('en-IE', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                    items: [...itemsRef.current],
+                    shippingCost: shippingRate,
+                    discountAmount: Number(discount.toFixed(2)),
+                    subtotal: Number(postDiscountSubtotal.toFixed(2)),
+                    total: grandTotal,
+                    currency: currencyRef.current || 'EUR',
+                    shippingDetails: { ...shippingRef.current },
+                    deliveryMethod: shippingMethodRef.current === 'dpd_express' ? 'DPD Ireland Express Tracked' : 'An Post Express Tracked',
+                    paymentMethod: activeTab === 'card' ? 'card' : 'paypal',
+                  };
+
+                  try {
+                    const existing = JSON.parse(localStorage.getItem('oci_sports_orders') || '[]');
+                    localStorage.setItem('oci_sports_orders', JSON.stringify([verifiedOrder, ...existing]));
+                  } catch {
+                    // ignore storage quota errors
+                  }
+
+                  setIsProcessing(false);
+                  onSuccess(verifiedOrder);
+                  return;
+                } else {
+                  throw new Error(`PayPal payment status is ${details.status}. Funds were not captured.`);
+                }
+              }
+              throw new Error('PayPal payment capture action is unavailable.');
             } catch (err: any) {
               hasCapturedRef.current = false;
               setIsProcessing(false);

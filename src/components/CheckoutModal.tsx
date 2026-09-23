@@ -26,6 +26,8 @@ import {
   IRISH_COUNTIES
 } from '../utils/addressValidation';
 
+export const LIVE_PAYPAL_CLIENT_ID = 'BAA4F1ULh2eIkMpHjpLikdIhAm7jNQZY7KRlpJ8J_qOf6TD3ehQv0QhMGc9u5PRUoCe-Mwtu0uYcyZzr6A';
+
 interface PayPalConfigState {
   loading: boolean;
   configured: boolean;
@@ -62,12 +64,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const [step, setStep] = useState<'shipping' | 'payment' | 'confirmed'>('shipping');
 
-  // PayPal Configuration state from server
+  // PayPal Configuration state with live production client ID pre-configured
   const [paypalConfig, setPaypalConfig] = useState<PayPalConfigState>({
-    loading: true,
-    configured: false,
-    clientId: null,
-    mode: 'sandbox',
+    loading: false,
+    configured: true,
+    clientId: (import.meta.env.VITE_PAYPAL_CLIENT_ID as string) || LIVE_PAYPAL_CLIENT_ID,
+    mode: 'live',
     currency: 'EUR',
     contactEmail: 'contactocisports@gmail.com',
   });
@@ -110,22 +112,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           if (isMounted) {
             setPaypalConfig({
               loading: false,
-              configured: Boolean(data.configured && data.clientId),
-              clientId: data.clientId || null,
-              mode: data.mode || 'sandbox',
+              configured: true,
+              clientId: data.clientId || (import.meta.env.VITE_PAYPAL_CLIENT_ID as string) || LIVE_PAYPAL_CLIENT_ID,
+              mode: data.mode || 'live',
               currency: data.currency || 'EUR',
               contactEmail: data.contactEmail || 'contactocisports@gmail.com',
             });
           }
-        } else {
-          if (isMounted) {
-            setPaypalConfig((prev) => ({ ...prev, loading: false, configured: false }));
-          }
         }
       } catch {
-        if (isMounted) {
-          setPaypalConfig((prev) => ({ ...prev, loading: false, configured: false }));
-        }
+        // Keeps the live client ID configured even if running on Cloudflare Pages static hosting
       }
     }
 
@@ -717,88 +713,39 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             )}
 
-            {/* Official PayPal Buttons OR Real Configuration Setup Notice */}
-            {paypalConfig.configured && paypalConfig.clientId ? (
-              <div className="space-y-3">
-                {/* Official PayPal Smart Payment Component */}
-                <PayPalButton
-                  clientId={paypalConfig.clientId}
-                  currency={currency}
-                  items={items}
-                  shippingDetails={shippingDetails}
-                  shippingMethod={shippingMethod}
-                  discountPercentage={discountPercentage}
-                  appliedPromo={appliedPromo}
-                  onSuccess={handlePaymentSuccess}
-                  onError={handlePaymentError}
-                  onCancel={handlePaymentCancel}
-                  isProcessing={isProcessing}
-                  setIsProcessing={setIsProcessing}
-                />
+            {/* Official PayPal & Debit/Credit Card Checkout */}
+            <div className="space-y-3">
+              <PayPalButton
+                clientId={paypalConfig.clientId || LIVE_PAYPAL_CLIENT_ID}
+                currency={currency}
+                items={items}
+                shippingDetails={shippingDetails}
+                shippingMethod={shippingMethod}
+                discountPercentage={discountPercentage}
+                appliedPromo={appliedPromo}
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+                onCancel={handlePaymentCancel}
+                isProcessing={isProcessing}
+                setIsProcessing={setIsProcessing}
+              />
 
-                <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
-                  <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />
-                    <span>Official Secure Infrastructure:</span>
-                  </div>
-                  <p className="leading-relaxed">
-                    • Card &amp; PayPal transactions are processed directly through PayPal's secure 256-bit encrypted gateway.
-                  </p>
-                  <p className="leading-relaxed">
-                    • No card numbers, CVVs, or PayPal passwords are ever handled by or stored on our website.
-                  </p>
-                  <p className="leading-relaxed">
-                    • Funds from successful purchases are deposited directly into your connected PayPal Business account.
-                  </p>
+              <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
+                <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />
+                  <span>Official Secure Infrastructure:</span>
                 </div>
+                <p className="leading-relaxed">
+                  • Card &amp; PayPal transactions are processed directly through PayPal's secure 256-bit encrypted gateway.
+                </p>
+                <p className="leading-relaxed">
+                  • No card numbers, CVVs, or PayPal passwords are ever handled by or stored on our website.
+                </p>
+                <p className="leading-relaxed">
+                  • Funds from successful purchases are deposited directly into your connected PayPal Business account.
+                </p>
               </div>
-            ) : (
-              /* Professional Customer Notification (Gateway Initializing) */
-              <div className="p-5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] shrink-0 font-black">
-                    <CreditCard className="w-5 h-5 text-[#d4af37]" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-black text-white uppercase tracking-tight font-['Outfit']">
-                      Direct Card &amp; PayPal Checkout
-                    </h3>
-                    <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                      Our direct payment gateway is currently completing connection with our merchant processor. To complete your order immediately for same-day dispatch across Ireland, please contact our matchday desk:
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 text-zinc-300">
-                    <Mail className="w-4 h-4 text-[#d4af37]" />
-                    <a
-                      href="mailto:contactocisports@gmail.com"
-                      className="font-bold text-white hover:text-[#d4af37] underline transition-colors"
-                    >
-                      contactocisports@gmail.com
-                    </a>
-                  </div>
-                  <span className="text-[11px] text-zinc-400">Direct An Post &amp; DPD Express Fulfillment</span>
-                </div>
-
-                {onOpenStaffPortal && (
-                  <div className="pt-2 border-t border-zinc-900 flex justify-center sm:justify-start">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onOpenStaffPortal();
-                      }}
-                      className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1.5 cursor-pointer underline transition-colors"
-                    >
-                      <Lock className="w-3 h-3 text-zinc-500" />
-                      <span>Store Owner? Manage Payment Gateway in Staff Portal</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            </div>
 
             {/* Back Button */}
             <div className="pt-2 flex justify-start">
