@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import { cloudflare } from '@cloudflare/vite-plugin';
 import path from 'path';
 import fs from 'fs';
 import {defineConfig, Plugin} from 'vite';
@@ -270,7 +271,7 @@ function ordersApiPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), staticImageFallback(), ordersApiPlugin()],
+    plugins: [cloudflare(), react(), tailwindcss(), staticImageFallback(), ordersApiPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
