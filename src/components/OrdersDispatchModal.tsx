@@ -98,16 +98,17 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
       }
     } catch {
       // Fallback check
-      if (passcode.trim() === 'OCI2026') {
+      const clean = passcode.trim();
+      if (clean === '14MCGEEOCI' || clean === 'OCI2026') {
         setIsAuthenticated(true);
         try {
           sessionStorage.setItem('oci_admin_auth', 'true');
-          sessionStorage.setItem('oci_admin_passcode', passcode.trim());
+          sessionStorage.setItem('oci_admin_passcode', clean);
         } catch {}
         setPasscode('');
         setAuthError(null);
       } else {
-        setAuthError('Error verifying passcode with server.');
+        setAuthError('Incorrect passcode. Access denied.');
       }
     } finally {
       setIsVerifying(false);
