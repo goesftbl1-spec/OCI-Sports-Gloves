@@ -14,6 +14,7 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
 import { NotificationToast, ToastMessage } from './components/NotificationToast';
 import { OrdersDispatchModal } from './components/OrdersDispatchModal';
+import { OrderDetailsPage } from './components/OrderDetailsPage';
 import { Lock } from 'lucide-react';
 
 import { SINGLE_PRODUCT, REVIEWS } from './data/mockData';
@@ -45,6 +46,22 @@ export default function App() {
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  // Private Order Details Route (Accessible exclusively via direct URL: /order-details)
+  const [isOrderDetailsRoute, setIsOrderDetailsRoute] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
+    return path === '/order-details' || path === '/order-details/';
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase();
+      setIsOrderDetailsRoute(path === '/order-details' || path === '/order-details/');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Owner shortcut: Ctrl+Shift+O (or Cmd+Shift+O) or URL param ?dispatch=1 / ?admin=1 to toggle protected Orders & Dispatch Hub
   useEffect(() => {
@@ -170,6 +187,11 @@ export default function App() {
   };
 
   const cartTotalCount = cartItems.reduce((acc, i) => acc + i.quantity, 0);
+
+  // Dedicated Private Store Owner "Order Details" View
+  if (isOrderDetailsRoute) {
+    return <OrderDetailsPage />;
+  }
 
   return (
     <div className="min-h-screen bg-black text-[#f4f4f5] flex flex-col font-['Plus_Jakarta_Sans',sans-serif] selection:bg-[#e5b338]/30 selection:text-white">

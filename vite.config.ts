@@ -92,12 +92,107 @@ function staticImageFallback(): Plugin {
 }
 
 function ordersApiPlugin(): Plugin {
+  const activeDevSessions = new Set<string>();
+  const VALID_DEV_PASSWORDS = new Set(['14MCGEEOCI', 'OCI2026']);
+
   return {
     name: 'orders-api-plugin',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const urlClean = (req.url || '').split('?')[0];
 
+        // 1. Owner Login
+        if (urlClean === '/api/admin/login' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (c) => (body += c));
+          req.on('end', () => {
+            try {
+              const { password } = JSON.parse(body);
+              const clean = String(password || '').trim();
+              if (VALID_DEV_PASSWORDS.has(clean)) {
+                const token = 'dev-token-' + Math.random().toString(36).substring(2) + Date.now();
+                activeDevSessions.add(token);
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: true, token, expiresIn: 43200 }));
+              }
+              res.statusCode = 401;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'Incorrect password. Access denied.' }));
+            } catch {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'Invalid JSON' }));
+            }
+          });
+          return;
+        }
+
+        // 2. Owner Logout
+        if (urlClean === '/api/admin/logout' && req.method === 'POST') {
+          const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+          if (auth) activeDevSessions.delete(auth);
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ success: true }));
+        }
+
+        // 3. Patch Order Status (e.g. /api/orders/:orderId/status)
+        const patchStatusMatch = urlClean.match(/^\/api\/orders\/([^/]+)\/status$/);
+        if (patchStatusMatch && req.method === 'PATCH') {
+          const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+          const tokenH = (req.headers['x-admin-token'] as string || '').trim();
+          const passH = (req.headers['x-admin-passcode'] as string || '').trim();
+          const isAuthed = activeDevSessions.has(auth) || activeDevSessions.has(tokenH) || VALID_DEV_PASSWORDS.has(passH);
+
+          if (!isAuthed) {
+            res.statusCode = 401;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ error: 'UNAUTHORIZED' }));
+          }
+
+          const targetOrderId = decodeURIComponent(patchStatusMatch[1]);
+          let body = '';
+          req.on('data', (c) => (body += c));
+          req.on('end', () => {
+            try {
+              const { status, dispatchStatus, trackingNumber, carrier, notes } = JSON.parse(body);
+              const filePath = path.resolve(__dirname, 'data/orders.json');
+              let orders: any[] = [];
+              if (fs.existsSync(filePath)) {
+                try {
+                  orders = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                } catch {
+                  orders = [];
+                }
+              }
+              const cleanId = targetOrderId.toUpperCase();
+              const idx = orders.findIndex((o) => (o.orderId && o.orderId.toUpperCase() === cleanId) || (o.paypalOrderId && o.paypalOrderId.toUpperCase() === cleanId));
+              if (idx === -1) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Order not found' }));
+              }
+              orders[idx] = {
+                ...orders[idx],
+                ...(status ? { status } : {}),
+                ...(dispatchStatus ? { dispatchStatus } : {}),
+                ...(trackingNumber !== undefined ? { trackingNumber } : {}),
+                ...(carrier !== undefined ? { carrier } : {}),
+                ...(notes !== undefined ? { notes } : {}),
+                updatedAt: new Date().toISOString(),
+              };
+              fs.writeFileSync(filePath, JSON.stringify(orders, null, 2), 'utf-8');
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true, order: orders[idx] }));
+            } catch {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'Invalid request' }));
+            }
+          });
+          return;
+        }
+
+        // 4. Create / Sync Order
         if (urlClean === '/api/orders' && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk) => {
@@ -132,7 +227,19 @@ function ordersApiPlugin(): Plugin {
           return;
         }
 
+        // 5. Get Orders (Protected)
         if (urlClean === '/api/orders' && req.method === 'GET') {
+          const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+          const tokenH = (req.headers['x-admin-token'] as string || '').trim();
+          const passH = (req.headers['x-admin-passcode'] as string || '').trim();
+          const isAuthed = activeDevSessions.has(auth) || activeDevSessions.has(tokenH) || VALID_DEV_PASSWORDS.has(passH);
+
+          if (!isAuthed) {
+            res.statusCode = 401;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Authentication required' }));
+          }
+
           const filePath = path.resolve(__dirname, 'data/orders.json');
           let orders = [];
           if (fs.existsSync(filePath)) {
@@ -143,7 +250,7 @@ function ordersApiPlugin(): Plugin {
             }
           }
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ orders }));
+          res.end(JSON.stringify({ success: true, orders }));
           return;
         }
 

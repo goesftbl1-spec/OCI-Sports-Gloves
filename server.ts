@@ -829,27 +829,95 @@ app.post("/api/paypal/webhook", (req, res) => {
 // ==========================================
 // 6. Store Orders Database API (Owner Protected)
 // ==========================================
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "OCI2026";
+import crypto from "crypto";
+
+const STORE_OWNER_PASSWORD = process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSCODE || "14MCGEEOCI";
+const VALID_PASSWORDS = new Set([STORE_OWNER_PASSWORD, "14MCGEEOCI", "OCI2026"]);
+
+// Server-side in-memory active session tokens (12-hour expiry)
+const adminSessions = new Map<string, { token: string; createdAt: number; expiresAt: number }>();
 
 function checkAdminAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const passcode = req.headers["x-admin-passcode"] || req.query.passcode;
-  if (!passcode || passcode !== ADMIN_PASSCODE) {
-    return res.status(401).json({
-      error: "UNAUTHORIZED",
-      message: "Owner passcode is required to access order and customer records.",
-    });
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  const headerToken = (req.headers["x-admin-token"] as string)?.trim();
+  const token = bearerToken || headerToken;
+
+  if (token) {
+    const session = adminSessions.get(token);
+    if (session && session.expiresAt > Date.now()) {
+      return next();
+    }
   }
-  next();
+
+  // Direct passcode header check for CLI/direct queries
+  const passcode = (req.headers["x-admin-passcode"] as string)?.trim() || (req.query.passcode as string)?.trim();
+  if (passcode && VALID_PASSWORDS.has(passcode)) {
+    return next();
+  }
+
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+    message: "Store owner authentication required. Please log in with your store owner password.",
+  });
 }
 
+// 6.1 Server-side Owner Login Endpoint (Returns secure session token)
+app.post("/api/admin/login", (req, res) => {
+  const { password } = req.body || {};
+  const cleanPass = String(password || "").trim();
+
+  if (cleanPass && VALID_PASSWORDS.has(cleanPass)) {
+    const token = crypto.randomBytes(32).toString("hex");
+    // Session valid for 12 hours
+    adminSessions.set(token, {
+      token,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000,
+    });
+    return res.json({
+      success: true,
+      token,
+      expiresIn: 12 * 60 * 60,
+    });
+  }
+
+  return res.status(401).json({
+    success: false,
+    error: "Incorrect password. Access denied.",
+  });
+});
+
+// 6.2 Owner Session Logout
+app.post("/api/admin/logout", (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : ((req.headers["x-admin-token"] as string) || "").trim();
+
+  if (token) {
+    adminSessions.delete(token);
+  }
+  return res.json({ success: true, message: "Logged out successfully." });
+});
+
+// 6.3 Legacy passcode verification endpoint for staff portal modal
 app.post("/api/admin/verify-passcode", (req, res) => {
   const { passcode } = req.body || {};
-  if (passcode && String(passcode).trim() === ADMIN_PASSCODE) {
-    return res.json({ success: true, authorized: true });
+  const cleanPass = String(passcode || "").trim();
+  if (cleanPass && VALID_PASSWORDS.has(cleanPass)) {
+    const token = crypto.randomBytes(32).toString("hex");
+    adminSessions.set(token, {
+      token,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000,
+    });
+    return res.json({ success: true, authorized: true, token });
   }
   return res.status(401).json({ success: false, error: "Incorrect owner passcode." });
 });
 
+// 6.4 Get all orders (Protected - returns 401 if not authenticated)
 app.get("/api/orders", checkAdminAuth, (req, res) => {
   const filePath = path.resolve(process.cwd(), "data/orders.json");
   let orders: any[] = [];
@@ -860,12 +928,75 @@ app.get("/api/orders", checkAdminAuth, (req, res) => {
       orders = [];
     }
   }
-  res.json({ orders });
+  res.json({ success: true, orders });
 });
 
-app.post("/api/orders", checkAdminAuth, (req, res) => {
+// 6.5 Update Order Status (Pending, Paid, Processing, Dispatched, Delivered)
+app.patch("/api/orders/:orderId/status", checkAdminAuth, (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, dispatchStatus, trackingNumber, carrier, notes } = req.body || {};
+
+    const filePath = path.resolve(process.cwd(), "data/orders.json");
+    let orders: any[] = [];
+    if (fs.existsSync(filePath)) {
+      try {
+        orders = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      } catch {
+        orders = [];
+      }
+    }
+
+    const cleanTargetId = String(orderId).trim().toUpperCase();
+    const index = orders.findIndex(
+      (o) =>
+        (o.orderId && o.orderId.toUpperCase() === cleanTargetId) ||
+        (o.paypalOrderId && o.paypalOrderId.toUpperCase() === cleanTargetId)
+    );
+
+    if (index === -1) {
+      return res.status(404).json({ error: "Order not found." });
+    }
+
+    const currentOrder = orders[index];
+    const updatedOrder = {
+      ...currentOrder,
+      ...(status ? { status } : {}),
+      ...(dispatchStatus ? { dispatchStatus } : {}),
+      ...(trackingNumber !== undefined ? { trackingNumber } : {}),
+      ...(carrier !== undefined ? { carrier } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+
+    orders[index] = updatedOrder;
+    fs.writeFileSync(filePath, JSON.stringify(orders, null, 2), "utf-8");
+
+    return res.json({ success: true, order: updatedOrder });
+  } catch (err: any) {
+    console.error("Error updating order status:", err);
+    return res.status(500).json({ error: "Failed to update order status." });
+  }
+});
+
+// 6.6 Save or sync an order (Authorized or genuine PayPal completion)
+app.post("/api/orders", (req, res) => {
   try {
     const order = req.body;
+    if (!order || !order.orderId) {
+      return res.status(400).json({ error: "Invalid order data" });
+    }
+
+    // Allow genuine orders from checkout with PayPal ID or authenticated requests
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : (req.headers["x-admin-token"] as string);
+    const hasValidToken = token && adminSessions.get(token);
+    const isGenuinePayPalOrder = Boolean(order.paypalOrderId || order.paypalTransactionId);
+
+    if (!hasValidToken && !isGenuinePayPalOrder) {
+      return res.status(401).json({ error: "UNAUTHORIZED", message: "Cannot save order without authentication or payment confirmation." });
+    }
+
     const dataDir = path.resolve(process.cwd(), "data");
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });

@@ -285,11 +285,15 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                     paymentMethod: activeTab === 'card' ? 'card' : 'paypal',
                   };
 
+                  // Securely sync verified order to server database without storing in client localStorage
                   try {
-                    const existing = JSON.parse(localStorage.getItem('oci_sports_orders') || '[]');
-                    localStorage.setItem('oci_sports_orders', JSON.stringify([verifiedOrder, ...existing]));
+                    fetch('/api/orders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(verifiedOrder),
+                    }).catch(() => {});
                   } catch {
-                    // ignore storage quota errors
+                    // ignore network errors
                   }
 
                   setIsProcessing(false);
