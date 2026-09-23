@@ -238,11 +238,15 @@ function validateAddressDetails(details: any): { isValid: boolean; errors: Recor
   };
 }
 
+// Default live merchant credentials for OCI Sports
+const DEFAULT_PAYPAL_CLIENT_ID = "BAA4F1ULh2eIkMpHjpLikdIhAm7jNQZY7KRlpJ8J_qOf6TD3ehQv0QhMGc9u5PRUoCe-Mwtu0uYcyZzr6A";
+const DEFAULT_PAYPAL_CLIENT_SECRET = "EKudb281tHR9GPEFmir_xRJpoKmoQRH-4yXLGdk3wRaDcGrdSw-IiAPIsjQoKmAMQQVHkjmpi0yg8inC";
+
 // PayPal configuration helper
 const getPayPalConfig = () => {
-  const clientId = process.env.PAYPAL_CLIENT_ID?.trim() || "";
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET?.trim() || "";
-  const mode = (process.env.PAYPAL_MODE?.trim() || "sandbox").toLowerCase();
+  const clientId = process.env.PAYPAL_CLIENT_ID?.trim() || DEFAULT_PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET?.trim() || DEFAULT_PAYPAL_CLIENT_SECRET;
+  const mode = (process.env.PAYPAL_MODE?.trim() || "live").toLowerCase();
   const isLive = mode === "live";
   const baseUrl = isLive ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
   const isConfigured = Boolean(clientId && clientSecret);
