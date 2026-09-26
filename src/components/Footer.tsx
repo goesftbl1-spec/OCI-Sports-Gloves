@@ -40,7 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, o
             {subscribed ? (
               <div className="w-full py-2.5 px-4 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-400 text-xs font-bold flex items-center gap-2">
                 <Check className="w-4 h-4" />
-                <span>You're in! Use code OCI10 at checkout.</span>
+                <span>You're in! Use code OCI5 at checkout.</span>
               </div>
             ) : (
               <>
@@ -111,7 +111,6 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, o
                 </button>
               </li>
               <li><a href="#grip-tech" className="hover:text-[#d4af37] transition-colors">Grip Technology</a></li>
-              <li><a href="#reviews" className="hover:text-[#d4af37] transition-colors">Club Player Reviews</a></li>
               <li><a href="#care-faq" className="hover:text-[#d4af37] transition-colors">Glove Washing & Longevity</a></li>
               <li>
                 <button onClick={onOpenChat} className="hover:text-[#d4af37] transition-colors cursor-pointer text-left">

@@ -172,7 +172,9 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
               }, 0);
               const discount = promoRef.current ? (rawSubtotal * discountPercentage) / 100 : 0;
               const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
-              const shippingRate = shippingMethodRef.current === 'dpd_express' ? 6.99 : 3.99;
+              const shippingRate = shippingMethodRef.current === 'dpd_express' 
+                ? 6.99 
+                : 3.99;
               const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
 
               if (actions?.order?.create) {

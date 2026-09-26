@@ -37,17 +37,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           id="nav-logo-btn"
           type="button"
           onClick={handleReload}
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
-          className="flex items-center cursor-pointer group select-none py-1"
+          whileHover={{ scale: 1.05, rotate: -1 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          className="flex items-center cursor-pointer group select-none py-1 relative"
           title="Reload page"
           aria-label="Reload page"
         >
+          <div className="absolute inset-0 bg-[#e5b338]/0 group-hover:bg-[#e5b338]/15 rounded-lg blur-md transition-all duration-300" />
           <img
             src={ociLogo}
             alt="Logo"
             referrerPolicy="no-referrer"
-            className="h-10 sm:h-12 w-auto object-contain transition-all group-hover:brightness-125"
+            className="relative h-10 sm:h-12 w-auto object-contain transition-all duration-300 group-hover:brightness-125 group-hover:drop-shadow-[0_0_12px_rgba(229,179,56,0.4)]"
           />
         </motion.button>
 
@@ -56,19 +58,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           <motion.button
             id="nav-cart-btn"
             type="button"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.06, y: -1 }}
+            whileTap={{ scale: 0.94, y: 1 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 16 }}
             onClick={onOpenCart}
-            className="relative flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white text-black font-extrabold text-xs uppercase tracking-wider hover:bg-zinc-200 transition-all cursor-pointer shadow-sm"
+            className="relative group overflow-hidden flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.25)] hover:shadow-[0_0_25px_rgba(229,179,56,0.5)] border border-white/80"
             aria-label="View Cart"
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Bag</span>
-            {cartCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[#e5b338] text-black text-[10px] font-black flex items-center justify-center">
+            {/* Ambient Shimmer Sweep */}
+            <div className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-black/10 to-transparent skew-x-[-20deg] pointer-events-none group-hover:animate-[shimmer_1s_ease-in-out_infinite]" />
+
+            <ShoppingBag className="relative z-10 w-3.5 h-3.5 stroke-[2.5] transition-transform duration-200 group-hover:rotate-[-8deg]" />
+            <span className="relative z-10 font-extrabold tracking-widest">Bag</span>
+            {cartCount > 0 ? (
+              <motion.span 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="relative z-10 w-4 h-4 rounded-full bg-[#e5b338] text-black text-[10px] font-black flex items-center justify-center shadow-sm"
+              >
                 {cartCount}
-              </span>
-            )}
+              </motion.span>
+            ) : null}
           </motion.button>
         </div>
 

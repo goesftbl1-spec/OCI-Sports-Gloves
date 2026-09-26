@@ -32,6 +32,8 @@ const CANONICAL_CATALOG: Record<string, CanonicalProduct> = {
 
 const VALID_PROMOS: Record<string, number> = {
   OCI10: 10,     // 10% welcome discount
+  EDITOR15: 15,  // 15% off Gaelic gloves
+  OCI5: 5,       // 5% off discount
 };
 
 const PERSONALIZATION_FEE = 4.0;
@@ -935,7 +937,7 @@ app.get("/api/orders", checkAdminAuth, (req, res) => {
 app.patch("/api/orders/:orderId/status", checkAdminAuth, (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status, dispatchStatus, trackingNumber, carrier, notes } = req.body || {};
+    const { status, dispatchStatus, trackingNumber, carrier, notes, dispatchDate, paymentStatus } = req.body || {};
 
     const filePath = path.resolve(process.cwd(), "data/orders.json");
     let orders: any[] = [];
@@ -962,10 +964,12 @@ app.patch("/api/orders/:orderId/status", checkAdminAuth, (req, res) => {
     const updatedOrder = {
       ...currentOrder,
       ...(status ? { status } : {}),
+      ...(paymentStatus ? { paymentStatus } : {}),
       ...(dispatchStatus ? { dispatchStatus } : {}),
       ...(trackingNumber !== undefined ? { trackingNumber } : {}),
       ...(carrier !== undefined ? { carrier } : {}),
       ...(notes !== undefined ? { notes } : {}),
+      ...(dispatchDate !== undefined ? { dispatchDate } : {}),
       updatedAt: new Date().toISOString(),
     };
 
@@ -1157,8 +1161,8 @@ STORE KNOWLEDGE BASE (GROUND TRUTH - NEVER CONTRADICT OR INVENT OUTSIDE OF THIS)
 - Custom personalized gloves (printed with a player's name/number) cannot be returned for size exchanges unless defective.
 
 7. ACTIVE DISCOUNT CODES:
-- "OCI10": 10% off welcome code at checkout.
-- STRICT RULE ON FORMER DISCOUNT: The old "Club Bulk 20% Off" / "GAACLUB20" discount has been completely discontinued and removed. NEVER mention, offer, or validate "GAACLUB20" or "Club Bulk 20% off". If asked for a discount, provide only the active welcome code "OCI10".
+- "OCI5": 5% off code at checkout.
+- If asked for a discount, provide only the active code "OCI5". Do not mention or reveal any secret codes.
 
 8. ORDER TRACKING & ORDER STATUS:
 - If a customer asks "Where is my order?" or wants order tracking:
@@ -1342,7 +1346,7 @@ function generateSmartLocalResponse(
     q.includes("coupon") ||
     q.includes("voucher")
   ) {
-    return "You can use code **OCI10** at checkout for **10% off** your order! Simply enter **OCI10** in the cart drawer promo field before proceeding to checkout.";
+    return "You can use code **OCI5** for **5% off**! Simply enter **OCI5** in the 'Enter Discount' section on the product page, matchday bag, or checkout.";
   }
 
   // 12. Glove Care & Washing

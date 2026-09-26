@@ -50,6 +50,34 @@
   100% { transform: translateX(100%); }
 }
 
+@keyframes laser-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes gold-shine-sweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  50% { transform: scale(1.05); opacity: 0.2; }
+  100% { transform: scale(0.95); opacity: 0.6; }
+}
+
+.animate-laser-spin {
+  animation: laser-spin 4s linear infinite;
+}
+
+.text-gold-animated {
+  background: linear-gradient(90deg, #d4af37 0%, #fff 25%, #e5b338 50%, #aa8214 75%, #d4af37 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gold-shine-sweep 4s linear infinite;
+}
+
 .shimmer-effect {
   position: relative;
   overflow: hidden;

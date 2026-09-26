@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, GloveSize, Currency, Review } from '../types';
+import { formatPrice } from '../utils/formatters';
 import { 
   Star, 
   ArrowLeft, 
@@ -10,7 +11,11 @@ import {
   Ruler, 
   ChevronLeft,
   ChevronRight,
-  MessageSquarePlus
+  Tag,
+  Sparkles,
+  Percent,
+  CheckCircle,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -18,11 +23,15 @@ interface ProductPageProps {
   product: Product;
   currency: Currency;
   onBackToHome: () => void;
-  onAddToCart: (product: Product, size: GloveSize, quantity: number) => void;
+  onAddToCart?: (product: Product, size: GloveSize, quantity: number) => void;
   onOpenSizingModal: () => void;
   onBuyNow: (product: Product, size: GloveSize, quantity: number) => void;
-  reviews: Review[];
-  onAddReview: (review: Omit<Review, 'id' | 'date' | 'helpfulCount'>) => void;
+  reviews?: Review[];
+  onAddReview?: (review: Omit<Review, 'id' | 'date' | 'helpfulCount'>) => void;
+  appliedPromo?: string | null;
+  discountPercentage?: number;
+  onApplyPromo?: (code: string) => boolean;
+  onRemovePromo?: () => void;
 }
 
 export const ProductPage: React.FC<ProductPageProps> = ({
@@ -31,8 +40,10 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   onBackToHome,
   onOpenSizingModal,
   onBuyNow,
-  reviews,
-  onAddReview
+  appliedPromo,
+  discountPercentage = 0,
+  onApplyPromo,
+  onRemovePromo
 }) => {
   const [selectedSize, setSelectedSize] = useState<GloveSize>('M');
   const [quantity, setQuantity] = useState(1);
@@ -41,16 +52,62 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
 
+  // Discount code entry state
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [discountSuccess, setDiscountSuccess] = useState<string | null>(null);
+
+  // Notification popup state ("5% off? Use “OCI5” for 5% off!")
+  const [showDiscountToast, setShowDiscountToast] = useState(false);
+  const [hasDismissedToast, setHasDismissedToast] = useState(false);
+
+  // Trigger popup when entering/visiting the product page
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!appliedPromo && !hasDismissedToast) {
+        setShowDiscountToast(true);
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [appliedPromo, hasDismissedToast]);
+
+  // Exit-intent trigger
+  useEffect(() => {
+    const handleMouseLeave = (e: MouseEvent) => {
+      if (e.clientY <= 10 && !appliedPromo && !hasDismissedToast) {
+        setShowDiscountToast(true);
+      }
+    };
+    document.addEventListener('mouseleave', handleMouseLeave);
+    return () => document.removeEventListener('mouseleave', handleMouseLeave);
+  }, [appliedPromo, hasDismissedToast]);
+
+  // Editing triggers: when the user edits options (size, quantity) on the product page
+  const handleSelectSize = (sz: GloveSize) => {
+    setSelectedSize(sz);
+    if (!appliedPromo && !hasDismissedToast) {
+      setShowDiscountToast(true);
+    }
+  };
+
+  const handleUpdateQuantity = (newQty: number) => {
+    setQuantity(newQty);
+    if (!appliedPromo && !hasDismissedToast) {
+      setShowDiscountToast(true);
+    }
+  };
+
+  // Live discount calculations
+  const basePrice = product.price || 14.99;
+  const isDiscounted = discountPercentage > 0;
+  const discountedUnitPrice = isDiscounted
+    ? Number((basePrice * (1 - discountPercentage / 100)).toFixed(2))
+    : basePrice;
+  const originalComparePrice = 20.00;
+
   // Touch and drag swipe state
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [mouseStartX, setMouseStartX] = useState<number | null>(null);
-
-  // Review form state
-  const [isWritingReview, setIsWritingReview] = useState(false);
-  const [author, setAuthor] = useState('');
-  const [county, setCounty] = useState('');
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
 
   // Image list for swipe carousel
   const imageList = [
@@ -117,30 +174,6 @@ export const ProductPage: React.FC<ProductPageProps> = ({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setMousePos({ x, y });
-  };
-
-  const handleReviewSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!author.trim() || !comment.trim()) return;
-
-    onAddReview({
-      author: author.trim(),
-      club: `${county || 'GAA'} Club Player`,
-      county: county.trim() || 'Ireland',
-      position: 'Forward',
-      gloveModel: product.name,
-      rating,
-      title: 'Verified Gaelic Review',
-      comment: comment.trim(),
-      verifiedBuyer: true,
-      gripRating: rating,
-      durabilityRating: 5
-    });
-
-    setAuthor('');
-    setCounty('');
-    setComment('');
-    setIsWritingReview(false);
   };
 
   return (
@@ -300,13 +333,24 @@ export const ProductPage: React.FC<ProductPageProps> = ({
               </h1>
 
               {/* Price Row */}
-              <div className="mt-1.5 flex items-baseline gap-2.5">
+              <div className="mt-1.5 flex flex-wrap items-baseline gap-2.5">
                 <span className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">
-                  €14.99
+                  {formatPrice(discountedUnitPrice * quantity, currency)}
                 </span>
-                <span className="text-base text-zinc-500 line-through font-normal">
-                  €20.00
-                </span>
+                {isDiscounted ? (
+                  <>
+                    <span className="text-base text-zinc-500 line-through font-normal">
+                      {formatPrice(basePrice * quantity, currency)}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-[#e5b338]/15 border border-[#e5b338]/40 text-[#e5b338] text-xs font-black uppercase tracking-wider">
+                      {appliedPromo} • {discountPercentage}% OFF
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-base text-zinc-500 line-through font-normal">
+                    {formatPrice(originalComparePrice * quantity, currency)}
+                  </span>
+                )}
               </div>
             </motion.div>
 
@@ -339,7 +383,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                       key={sz}
                       type="button"
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => setSelectedSize(sz)}
+                      onClick={() => handleSelectSize(sz)}
                       className={`py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all border cursor-pointer ${
                         isSelected
                           ? 'bg-[#e5b338] text-black border-[#e5b338]'
@@ -358,14 +402,17 @@ export const ProductPage: React.FC<ProductPageProps> = ({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.3 }}
-              className="space-y-2 pt-1"
+              className="space-y-3 pt-1"
             >
               {/* Stepper placed above the Buy Now button */}
-              <div className="flex items-center justify-start">
+              <div className="flex items-center justify-between">
+                <span className="font-bold uppercase tracking-wider text-zinc-400 text-[11px]">
+                  Quantity
+                </span>
                 <div className="flex items-center rounded-lg bg-zinc-950 border border-zinc-800 p-0.5">
                   <button
                     type="button"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    onClick={() => handleUpdateQuantity(Math.max(1, quantity - 1))}
                     className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850"
                   >
                     -
@@ -375,12 +422,124 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setQuantity(quantity + 1)}
+                    onClick={() => handleUpdateQuantity(quantity + 1)}
                     className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850"
                   >
                     +
                   </button>
                 </div>
+              </div>
+
+              {/* Enter Discount Section */}
+              <div className="p-3 rounded-xl bg-zinc-950/90 border border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-zinc-300">
+                    <Tag className="w-3.5 h-3.5 text-[#e5b338]" />
+                    <span>Enter Discount</span>
+                  </div>
+                  {appliedPromo && (
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#e5b338] bg-[#e5b338]/15 px-2 py-0.5 rounded border border-[#e5b338]/30">
+                      {appliedPromo} Active
+                    </span>
+                  )}
+                </div>
+
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#e5b338]/10 border border-[#e5b338]/30 text-xs">
+                    <div className="flex items-center gap-2 text-white">
+                      <CheckCircle className="w-4 h-4 text-[#e5b338] shrink-0" />
+                      <div>
+                        <div className="font-extrabold text-[#e5b338]">
+                          {appliedPromo === 'EDITOR15' ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉' : `Code ${appliedPromo} (${discountPercentage}% OFF)`}
+                        </div>
+                        <div className="text-[11px] text-zinc-400">
+                          Saving {formatPrice((basePrice * (discountPercentage / 100)) * quantity, currency)} on your gloves
+                        </div>
+                      </div>
+                    </div>
+                    {onRemovePromo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRemovePromo();
+                          setDiscountSuccess(null);
+                        }}
+                        className="text-[11px] text-zinc-400 hover:text-white underline cursor-pointer ml-2 shrink-0"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setDiscountError(null);
+                        setDiscountSuccess(null);
+                        if (!discountInput.trim()) return;
+                        if (onApplyPromo) {
+                          const code = discountInput.trim().toUpperCase();
+                          const ok = onApplyPromo(code);
+                          if (ok) {
+                            if (code === 'EDITOR15') {
+                              setDiscountSuccess('Secret code unlocked! 15% off applied!');
+                            } else {
+                              setDiscountSuccess(`Applied! ${code} discount active`);
+                            }
+                            setDiscountInput('');
+                          } else {
+                            setDiscountError('Invalid code. Enter a valid discount code or try OCI5');
+                          }
+                        }
+                      }}
+                      className="flex gap-2"
+                    >
+                      <input
+                        type="text"
+                        value={discountInput}
+                        onChange={(e) => {
+                          setDiscountInput(e.target.value.toUpperCase());
+                          setDiscountError(null);
+                        }}
+                        placeholder="e.g. OCI5"
+                        className="flex-1 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs font-mono font-bold text-white placeholder-zinc-500 uppercase tracking-wider outline-none focus:border-[#e5b338] transition-colors"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-[#e5b338] hover:text-black text-xs font-black uppercase tracking-wider text-white transition-all cursor-pointer shrink-0"
+                      >
+                        Apply
+                      </button>
+                    </form>
+
+                    {discountError && (
+                      <p className="text-[11px] text-red-400 font-medium">{discountError}</p>
+                    )}
+                    {discountSuccess && (
+                      <p className="text-[11px] text-emerald-400 font-medium">{discountSuccess}</p>
+                    )}
+
+                    {/* Only OCI5 is visible */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] text-zinc-500 uppercase font-semibold">Active code:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onApplyPromo) {
+                            onApplyPromo('OCI5');
+                            setDiscountSuccess('5% discount applied with code OCI5!');
+                          }
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 hover:bg-[#e5b338]/20 text-[#e5b338] border border-zinc-700 hover:border-[#e5b338] transition-all cursor-pointer flex items-center gap-1"
+                        title="Click to apply 5% off"
+                      >
+                        <Percent className="w-2.5 h-2.5" />
+                        <span>OCI5 (5% OFF)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Direct Buy Now Button without 14.99 price inside */}
@@ -412,183 +571,73 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 
         </div>
 
-        {/* Reviews Section: Minimalist & Compact with Load Animation */}
-        <motion.section 
-          initial={{ opacity: 0, y: 25 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.52 }}
-          className="mt-10 pt-6 border-t border-zinc-900"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-white font-['Outfit']">
-                Player Reviews
-              </h2>
-            </div>
-
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              onClick={() => setIsWritingReview(!isWritingReview)}
-              className="px-3 py-1.5 rounded-md bg-zinc-950 hover:bg-zinc-900 text-[11px] font-semibold text-[#e5b338] border border-zinc-800 flex items-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <MessageSquarePlus className="w-3.5 h-3.5" />
-              <span>{isWritingReview ? 'Close' : 'Write Review'}</span>
-            </motion.button>
-          </div>
-
-          {/* Optional Review Form */}
-          {isWritingReview && (
-            <motion.form 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              onSubmit={handleReviewSubmit} 
-              className="mb-4 p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5 overflow-hidden"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder="Your Name (e.g. Seán Kelly)"
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                  className="px-3 py-1.5 rounded bg-black border border-zinc-750 text-xs text-white focus:border-[#e5b338] outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="County / GAA Club"
-                  value={county}
-                  onChange={(e) => setCounty(e.target.value)}
-                  className="px-3 py-1.5 rounded bg-black border border-zinc-750 text-xs text-white focus:border-[#e5b338] outline-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-zinc-400">Rating:</span>
-                <div className="flex text-[#e5b338]">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setRating(s)}
-                      className="p-0.5 cursor-pointer"
-                    >
-                      <Star className={`w-3.5 h-3.5 ${s <= rating ? 'fill-[#e5b338]' : 'text-zinc-600'}`} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <textarea
-                required
-                rows={2}
-                placeholder="How did they hold up in training and matches?"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                className="w-full px-3 py-1.5 rounded bg-black border border-zinc-750 text-xs text-white focus:border-[#e5b338] outline-none resize-none"
-              />
-
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded bg-[#e5b338] text-black font-bold text-xs uppercase tracking-wider hover:bg-[#f5df88] transition-colors cursor-pointer"
-              >
-                Submit Review
-              </button>
-            </motion.form>
-          )}
-
-          {/* 3 Compact Testimonial Cards with Staggered Entrance */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            
-            {/* Review 1: Patrick O'Ryan, Louth (5 Stars) */}
-            <motion.div 
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.55 }}
-              className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-850 flex flex-col justify-between space-y-2"
-            >
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex text-[#e5b338]">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-[#e5b338]" />
-                    ))}
-                  </div>
-                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-900">
-                    Verified
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-300 leading-relaxed italic">
-                  “Jesus they’re class, no matter how many games i play in them they don’t get damaged. Well worth it.”
-                </p>
-              </div>
-              <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[11px]">
-                <span className="font-bold text-white uppercase font-['Outfit']">Patrick O’Ryan</span>
-                <span className="text-[#e5b338] font-semibold">Louth</span>
-              </div>
-            </motion.div>
-
-            {/* Review 2: Jamie McDaid, Galway (4 Stars) */}
-            <motion.div 
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.62 }}
-              className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-850 flex flex-col justify-between space-y-2"
-            >
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex text-[#e5b338]">
-                    {[...Array(4)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-[#e5b338]" />
-                    ))}
-                    <Star className="w-3 h-3 text-zinc-700" />
-                  </div>
-                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-900">
-                    Verified
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-300 leading-relaxed italic">
-                  “The gloves are comfortable and they fit good. Had them a while now and they’re good to be fair.”
-                </p>
-              </div>
-              <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[11px]">
-                <span className="font-bold text-white uppercase font-['Outfit']">Jamie McDaid</span>
-                <span className="text-[#e5b338] font-semibold">Galway</span>
-              </div>
-            </motion.div>
-
-            {/* Review 3: John Walsh, Kerry (5 Stars) */}
-            <motion.div 
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.69 }}
-              className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-850 flex flex-col justify-between space-y-2"
-            >
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex text-[#e5b338]">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-[#e5b338]" />
-                    ))}
-                  </div>
-                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-900">
-                    Verified
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-300 leading-relaxed italic">
-                  “They look class and feel class, the lads in the dressing room all asked me where i got them from. Great pair of gloves to play with. Worth the money.”
-                </p>
-              </div>
-              <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[11px]">
-                <span className="font-bold text-white uppercase font-['Outfit']">John Walsh</span>
-                <span className="text-[#e5b338] font-semibold">Kerry</span>
-              </div>
-            </motion.div>
-
-          </div>
-        </motion.section>
-
       </div>
+
+      {/* Floating Notification Pop-up when viewing/editing the product page */}
+      <AnimatePresence>
+        {showDiscountToast && !appliedPromo && (
+          <motion.div
+            initial={{ opacity: 0, y: 35, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 25, scale: 0.94 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            className="fixed bottom-6 right-4 sm:right-6 z-50 max-w-sm w-[calc(100vw-2rem)] p-4 rounded-2xl bg-zinc-900/95 backdrop-blur-md border-2 border-[#e5b338] shadow-[0_12px_40px_rgba(229,179,56,0.35)] text-white"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#e5b338]/20 border border-[#e5b338] flex items-center justify-center text-[#e5b338] shrink-0 mt-0.5 shadow-sm">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#e5b338]">
+                    Special Gaelic Offer
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDiscountToast(false);
+                      setHasDismissedToast(true);
+                    }}
+                    className="text-zinc-400 hover:text-white p-0.5 cursor-pointer rounded hover:bg-zinc-800 transition-colors"
+                    aria-label="Dismiss notification"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-sm font-bold text-white mt-1 leading-snug">
+                  5% off? Use “OCI5” for 5% off!
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onApplyPromo) {
+                        onApplyPromo('OCI5');
+                      }
+                      setShowDiscountToast(false);
+                      setHasDismissedToast(true);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#e5b338] hover:bg-[#f5df88] text-black font-black text-xs uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 shadow"
+                  >
+                    <Tag className="w-3 h-3" />
+                    <span>Apply “OCI5”</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDiscountToast(false);
+                      setHasDismissedToast(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

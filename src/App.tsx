@@ -8,7 +8,6 @@ import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProductPage } from './components/ProductPage';
 import { SizingGuideModal } from './components/SizingGuideModal';
-import { ReviewsModal } from './components/ReviewsModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
@@ -161,6 +160,18 @@ export default function App() {
 
   const handleApplyPromo = (code: string): boolean => {
     const clean = code.trim().toUpperCase();
+    if (clean === 'EDITOR15') {
+      setAppliedPromo('EDITOR15');
+      setDiscountPercentage(15);
+      addToast('Secret Code Unlocked! 🎉', 'Code EDITOR15 applied: 15% off your Gaelic gloves!');
+      return true;
+    }
+    if (clean === 'OCI5') {
+      setAppliedPromo('OCI5');
+      setDiscountPercentage(5);
+      addToast('5% Discount Applied', 'Code OCI5 applied: 5% off your order!');
+      return true;
+    }
     if (clean === 'OCI10') {
       setAppliedPromo('OCI10');
       setDiscountPercentage(10);
@@ -168,6 +179,12 @@ export default function App() {
       return true;
     }
     return false;
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setDiscountPercentage(0);
+    addToast('Discount Removed', 'Standard pricing restored');
   };
 
   const handleAddReview = (newRev: Omit<Review, 'id' | 'date' | 'helpfulCount'>) => {
@@ -220,29 +237,42 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.15 }}
               className="flex-1 flex flex-col"
             >
-              <Hero onShopNow={() => setCurrentPage('product')} />
+              <Hero 
+                onShopNow={() => {
+                  setCurrentPage('product');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }} 
+                onViewReviews={() => setIsReviewsModalOpen(true)}
+              />
             </motion.div>
           ) : (
             <motion.div
               key="product"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.2 }}
               className="flex-1 flex flex-col"
             >
               <ProductPage
                 product={product}
                 currency={currency}
-                onBackToHome={() => setCurrentPage('home')}
+                onBackToHome={() => {
+                  setCurrentPage('home');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
                 onAddToCart={handleAddToCart}
                 onBuyNow={handleBuyNow}
                 onOpenSizingModal={() => setIsSizingModalOpen(true)}
                 reviews={reviews}
                 onAddReview={handleAddReview}
+                appliedPromo={appliedPromo}
+                discountPercentage={discountPercentage}
+                onApplyPromo={handleApplyPromo}
+                onRemovePromo={handleRemovePromo}
               />
             </motion.div>
           )}
@@ -302,14 +332,6 @@ export default function App() {
         }}
       />
 
-      {/* Player Reviews Modal */}
-      <ReviewsModal
-        isOpen={isReviewsModalOpen}
-        onClose={() => setIsReviewsModalOpen(false)}
-        reviews={reviews}
-        onAddReview={handleAddReview}
-      />
-
       {/* Shopping Bag Drawer */}
       <CartDrawer
         isOpen={isCartOpen}
@@ -325,6 +347,7 @@ export default function App() {
         appliedPromo={appliedPromo}
         discountPercentage={discountPercentage}
         onApplyPromo={handleApplyPromo}
+        onRemovePromo={handleRemovePromo}
       />
 
       {/* Multi-Step Secure Checkout Modal */}
@@ -335,6 +358,8 @@ export default function App() {
         currency={currency}
         discountPercentage={discountPercentage}
         appliedPromo={appliedPromo}
+        onApplyPromo={handleApplyPromo}
+        onRemovePromo={handleRemovePromo}
         onOrderCompleted={handleOrderCompleted}
         onClearCart={() => setCartItems([])}
         onOpenStaffPortal={() => setIsOrdersModalOpen(true)}

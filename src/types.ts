@@ -93,7 +93,14 @@ export interface Order {
   orderId: string;
   paypalOrderId?: string;
   paypalTransactionId?: string;
-  status?: 'COMPLETED' | 'PENDING' | 'CANCELLED' | 'FAILED';
+  status?: string;
+  paymentStatus?: string;
+  dispatchStatus?: string;
+  dispatchDate?: string;
+  trackingNumber?: string;
+  carrier?: string;
+  notes?: string;
+  updatedAt?: string;
   payerEmail?: string;
   createdAt: string;
   items: CartItem[];
@@ -104,5 +111,5 @@ export interface Order {
   currency: Currency;
   shippingDetails: ShippingDetails;
   deliveryMethod: string;
-  paymentMethod?: 'paypal' | 'card' | 'apple_pay' | 'google_pay' | 'revolut';
+  paymentMethod?: 'paypal' | 'card' | 'apple_pay' | 'google_pay' | 'revolut' | 'paypal_card' | string;
 }

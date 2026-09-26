@@ -15,7 +15,9 @@ import {
   Mail,
   ChevronLeft,
   CreditCard,
-  AlertTriangle
+  AlertTriangle,
+  Tag,
+  Percent
 } from 'lucide-react';
 import { CartItem, Currency, ShippingDetails, Order } from '../types';
 import { formatPrice } from '../utils/formatters';
@@ -25,8 +27,11 @@ import {
   formatEircode,
   IRISH_COUNTIES
 } from '../utils/addressValidation';
+import {
+  LIVE_PAYPAL_CLIENT_ID
+} from '../constants';
 
-export const LIVE_PAYPAL_CLIENT_ID = 'BAA4F1ULh2eIkMpHjpLikdIhAm7jNQZY7KRlpJ8J_qOf6TD3ehQv0QhMGc9u5PRUoCe-Mwtu0uYcyZzr6A';
+export { LIVE_PAYPAL_CLIENT_ID };
 
 interface PayPalConfigState {
   loading: boolean;
@@ -44,6 +49,8 @@ interface CheckoutModalProps {
   currency: Currency;
   discountPercentage: number;
   appliedPromo: string | null;
+  onApplyPromo?: (code: string) => boolean;
+  onRemovePromo?: () => void;
   onOrderCompleted: (order: Order) => void;
   onClearCart: () => void;
   onOpenStaffPortal?: () => void;
@@ -56,6 +63,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   currency,
   discountPercentage,
   appliedPromo,
+  onApplyPromo,
+  onRemovePromo,
   onOrderCompleted,
   onClearCart,
   onOpenStaffPortal,
@@ -63,6 +72,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   if (!isOpen) return null;
 
   const [step, setStep] = useState<'shipping' | 'payment' | 'confirmed'>('shipping');
+
+  // Discount / promo state in checkout
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [checkoutPromoError, setCheckoutPromoError] = useState<string | null>(null);
+  const [checkoutPromoSuccess, setCheckoutPromoSuccess] = useState<string | null>(null);
 
   // PayPal Configuration state with live production client ID pre-configured
   const [paypalConfig, setPaypalConfig] = useState<PayPalConfigState>({
@@ -212,8 +226,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const handlePaymentSuccess = (order: Order) => {
-    setConfirmedOrder(order);
-    onOrderCompleted(order);
+    const enrichedOrder: Order = {
+      ...order,
+      items,
+      subtotal,
+      shippingCost,
+      total: grandTotal,
+    };
+    setConfirmedOrder(enrichedOrder);
+    onOrderCompleted(enrichedOrder);
     onClearCart();
     setStep('confirmed');
   };
@@ -273,7 +294,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         {/* Step Indicator */}
         {step !== 'confirmed' && (
-          <div className="flex items-center justify-between mb-6 px-1 text-xs font-bold uppercase tracking-wider">
+          <div className="flex items-center justify-between mb-4 px-1 text-xs font-bold uppercase tracking-wider">
             <button
               type="button"
               onClick={() => !isProcessing && setStep('shipping')}
@@ -687,6 +708,114 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   {formatPrice(grandTotal, currency)}
                 </span>
               </div>
+            </div>
+
+            {/* Enter Discount Section in Checkout */}
+            <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-zinc-300">
+                  <Tag className="w-3.5 h-3.5 text-[#d4af37]" />
+                  <span>Enter Discount</span>
+                </div>
+                {appliedPromo && (
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] bg-[#d4af37]/15 px-2 py-0.5 rounded border border-[#d4af37]/30">
+                    {appliedPromo} ({discountPercentage}% OFF)
+                  </span>
+                )}
+              </div>
+
+              {appliedPromo ? (
+                <div className="flex items-center justify-between p-2 rounded-lg bg-[#d4af37]/10 border border-[#d4af37]/30 text-xs">
+                  <div className="flex items-center gap-2 text-white">
+                    <CheckCircle className="w-4 h-4 text-[#d4af37] shrink-0" />
+                    <span className="font-bold text-[#d4af37]">
+                      {appliedPromo === 'EDITOR15'
+                        ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
+                        : `${discountPercentage}% Discount Active with code ${appliedPromo}`}
+                    </span>
+                  </div>
+                  {onRemovePromo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onRemovePromo();
+                        setCheckoutPromoSuccess(null);
+                      }}
+                      className="text-[11px] text-zinc-400 hover:text-white underline cursor-pointer ml-2"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setCheckoutPromoError(null);
+                      setCheckoutPromoSuccess(null);
+                      if (!promoCodeInput.trim()) return;
+                      if (onApplyPromo) {
+                        const code = promoCodeInput.trim().toUpperCase();
+                        const ok = onApplyPromo(code);
+                        if (ok) {
+                          if (code === 'EDITOR15') {
+                            setCheckoutPromoSuccess('Secret code unlocked! 15% discount applied!');
+                          } else {
+                            setCheckoutPromoSuccess(`Applied ${code}!`);
+                          }
+                          setPromoCodeInput('');
+                        } else {
+                          setCheckoutPromoError('Invalid code. Enter a valid discount code or try OCI5');
+                        }
+                      }
+                    }}
+                    className="flex gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={promoCodeInput}
+                      onChange={(e) => {
+                        setPromoCodeInput(e.target.value.toUpperCase());
+                        setCheckoutPromoError(null);
+                      }}
+                      placeholder="e.g. OCI5"
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-white placeholder-zinc-500 uppercase tracking-wider outline-none focus:border-[#d4af37]"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-[#d4af37] hover:text-black text-xs font-bold uppercase tracking-wider text-white transition-all cursor-pointer shrink-0"
+                    >
+                      Apply
+                    </button>
+                  </form>
+
+                  {checkoutPromoError && (
+                    <p className="text-[11px] text-red-400 font-medium">{checkoutPromoError}</p>
+                  )}
+                  {checkoutPromoSuccess && (
+                    <p className="text-[11px] text-emerald-400 font-medium">{checkoutPromoSuccess}</p>
+                  )}
+
+                  {/* Only OCI5 is visible */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-zinc-500 uppercase font-semibold">Active code:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onApplyPromo) {
+                          onApplyPromo('OCI5');
+                          setCheckoutPromoSuccess('5% discount applied!');
+                        }
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-950 hover:bg-[#d4af37]/20 text-[#d4af37] border border-zinc-700 hover:border-[#d4af37] transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <Percent className="w-2.5 h-2.5" />
+                      <span>OCI5 (5% OFF)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Cancelled Banner */}

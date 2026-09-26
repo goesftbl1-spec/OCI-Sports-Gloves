@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Minus, Lock, Tag, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, Trash2, Plus, Minus, Lock, Tag, ArrowRight, ShieldCheck, Percent, CheckCircle } from 'lucide-react';
 import { CartItem, Currency } from '../types';
 import { formatPrice } from '../utils/formatters';
 
@@ -14,6 +14,7 @@ interface CartDrawerProps {
   appliedPromo: string | null;
   discountPercentage: number;
   onApplyPromo: (code: string) => boolean;
+  onRemovePromo?: () => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -26,7 +27,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onProceedToCheckout,
   appliedPromo,
   discountPercentage,
-  onApplyPromo
+  onApplyPromo,
+  onRemovePromo
 }) => {
   if (!isOpen) return null;
 
@@ -49,12 +51,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setPromoSuccess('');
     if (!promoInput.trim()) return;
 
-    const ok = onApplyPromo(promoInput.trim());
+    const cleanCode = promoInput.trim().toUpperCase();
+    const ok = onApplyPromo(cleanCode);
     if (ok) {
-      setPromoSuccess(`Applied! ${promoInput.toUpperCase()} discount active`);
+      if (cleanCode === 'EDITOR15') {
+        setPromoSuccess('Secret code unlocked! 15% off active');
+      } else {
+        setPromoSuccess(`Applied! ${cleanCode} discount active`);
+      }
       setPromoInput('');
     } else {
-      setPromoError('Invalid promo code. Try OCI10');
+      setPromoError('Invalid promo code. Enter a valid discount code or try OCI5');
     }
   };
 
@@ -183,30 +190,85 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {items.length > 0 && (
             <div className="p-4 sm:p-5 bg-zinc-950 border-t border-zinc-800 space-y-3">
               
-              {/* Promo Code Input */}
-              <form onSubmit={handlePromoSubmit} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Club / Promo Code (e.g. OCI10)"
-                  value={promoInput}
-                  onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                  className="flex-1 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-white uppercase tracking-wider outline-none focus:border-[#d4af37]"
-                />
-                <button
-                  type="submit"
-                  className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white uppercase tracking-wider transition-colors"
-                >
-                  Apply
-                </button>
-              </form>
-
-              {promoError && <p className="text-[11px] text-red-400">{promoError}</p>}
-              {promoSuccess && <p className="text-[11px] text-emerald-400 font-semibold">{promoSuccess}</p>}
-              {appliedPromo && (
-                <div className="flex items-center justify-between text-[11px] text-[#d4af37] bg-[#d4af37]/10 px-2.5 py-1 rounded border border-[#d4af37]/30">
-                  <span>Code '{appliedPromo}' ({discountPercentage}% OFF) applied</span>
+              {/* Enter Discount Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-zinc-300">
+                    <Tag className="w-3.5 h-3.5 text-[#d4af37]" />
+                    <span>Enter Discount</span>
+                  </div>
+                  {appliedPromo && (
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] bg-[#d4af37]/15 px-2 py-0.5 rounded border border-[#d4af37]/30">
+                      {appliedPromo} ({discountPercentage}% OFF)
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-[#d4af37]/10 border border-[#d4af37]/30 text-xs">
+                    <div className="flex items-center gap-2 text-white">
+                      <CheckCircle className="w-4 h-4 text-[#d4af37] shrink-0" />
+                      <span className="font-bold text-[#d4af37]">
+                        {appliedPromo === 'EDITOR15'
+                          ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
+                          : `${discountPercentage}% OFF active with code ${appliedPromo}`}
+                      </span>
+                    </div>
+                    {onRemovePromo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRemovePromo();
+                          setPromoSuccess('');
+                        }}
+                        className="text-[11px] text-zinc-400 hover:text-white underline cursor-pointer ml-2"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <form onSubmit={handlePromoSubmit} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g. OCI5"
+                        value={promoInput}
+                        onChange={(e) => {
+                          setPromoInput(e.target.value.toUpperCase());
+                          setPromoError('');
+                        }}
+                        className="flex-1 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-white uppercase tracking-wider outline-none focus:border-[#d4af37]"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-[#d4af37] hover:text-black text-xs font-bold text-white uppercase tracking-wider transition-colors cursor-pointer shrink-0"
+                      >
+                        Apply
+                      </button>
+                    </form>
+
+                    {promoError && <p className="text-[11px] text-red-400 font-medium">{promoError}</p>}
+                    {promoSuccess && <p className="text-[11px] text-emerald-400 font-medium">{promoSuccess}</p>}
+
+                    {/* Only OCI5 is visible */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] text-zinc-500 uppercase font-semibold">Active code:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ok = onApplyPromo('OCI5');
+                          if (ok) setPromoSuccess('5% discount applied!');
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 hover:bg-[#d4af37]/20 text-[#d4af37] border border-zinc-700 hover:border-[#d4af37] transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <Percent className="w-2.5 h-2.5" />
+                        <span>OCI5 (5% OFF)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Price Breakdown */}
               <div className="space-y-1.5 pt-2 border-t border-zinc-850 text-xs text-zinc-400">
