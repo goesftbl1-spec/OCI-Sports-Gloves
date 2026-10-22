@@ -5,8 +5,8 @@ import { motion } from 'motion/react';
 import ociLogo from '../assets/images/oci_sports_logo_1789864489183.jpg';
 
 interface NavbarProps {
-  currentPage: 'home' | 'product';
-  onNavigate: (page: 'home' | 'product') => void;
+  currentPage: 'home' | 'collection' | 'product';
+  onNavigate: (page: 'home' | 'collection' | 'product') => void;
   cartCount: number;
   onOpenCart: () => void;
   onOpenReviews?: () => void;
@@ -16,11 +16,14 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  currentPage,
+  onNavigate,
   cartCount,
   onOpenCart
 }) => {
-  const handleReload = () => {
-    window.location.reload();
+  const handleLogoClick = () => {
+    onNavigate('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -32,17 +35,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         
-        {/* Metallic Chrome Logo (Click to reload the page) */}
+        {/* Zone 1: Metallic Chrome Logo */}
         <motion.button
           id="nav-logo-btn"
           type="button"
-          onClick={handleReload}
+          onClick={handleLogoClick}
           whileHover={{ scale: 1.05, rotate: -1 }}
           whileTap={{ scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
           className="flex items-center cursor-pointer group select-none py-1 relative"
-          title="Reload page"
-          aria-label="Reload page"
+          title="OCI Sports Home"
+          aria-label="OCI Sports Home"
         >
           <div className="absolute inset-0 bg-[#e5b338]/0 group-hover:bg-[#e5b338]/15 rounded-lg blur-md transition-all duration-300" />
           <img
@@ -53,7 +56,46 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
         </motion.button>
 
-        {/* Right Side: Only Bag Left */}
+        {/* Zone 2: Clean Top Bar Navigation Links */}
+        <nav className="flex items-center gap-6 text-xs uppercase font-extrabold tracking-widest">
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`transition-colors cursor-pointer py-1 relative ${
+              currentPage === 'home'
+                ? 'text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>Home</span>
+            {currentPage === 'home' && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#e5b338] rounded-full" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate('collection');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`transition-colors cursor-pointer py-1 relative ${
+              currentPage === 'collection'
+                ? 'text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>Collection</span>
+            {currentPage === 'collection' && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#e5b338] rounded-full" />
+            )}
+          </button>
+        </nav>
+
+        {/* Zone 3: Bag Button */}
         <div className="flex items-center">
           <motion.button
             id="nav-cart-btn"

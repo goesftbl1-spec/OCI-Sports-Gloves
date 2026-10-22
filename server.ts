@@ -67,6 +67,98 @@ function isBannedOrPlaceholder(text: string): boolean {
   return words.some((w) => ["test", "asdf", "qwerty", "fake", "placeholder", "xxx", "yyy", "zzz"].includes(w));
 }
 
+// ==============================================================
+// STRICT INVENTORY MANAGEMENT (5 Small, 3 Medium, 4 Large)
+// ==============================================================
+interface SizeInventory {
+  S: number;
+  M: number;
+  L: number;
+  [key: string]: number;
+}
+
+const DEFAULT_INVENTORY: Record<string, SizeInventory> = {
+  "oci-elite-2-gloves": {
+    S: 5,
+    M: 3,
+    L: 4,
+  },
+};
+
+function getInventory(): Record<string, SizeInventory> {
+  const dataDir = path.resolve(process.cwd(), "data");
+  const invPath = path.resolve(dataDir, "inventory.json");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  if (!fs.existsSync(invPath)) {
+    fs.writeFileSync(invPath, JSON.stringify(DEFAULT_INVENTORY, null, 2), "utf-8");
+    return JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+  }
+  try {
+    const raw = fs.readFileSync(invPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    return parsed;
+  } catch {
+    return JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+  }
+}
+
+function saveInventory(inv: Record<string, SizeInventory>) {
+  const dataDir = path.resolve(process.cwd(), "data");
+  const invPath = path.resolve(dataDir, "inventory.json");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  fs.writeFileSync(invPath, JSON.stringify(inv, null, 2), "utf-8");
+}
+
+function checkStockAvailability(items: any[]): { available: boolean; error?: string } {
+  const inv = getInventory();
+  for (const it of items) {
+    const productId = it.product?.id || it.id || "oci-elite-2-gloves";
+    const prodInv = inv[productId];
+    if (prodInv) {
+      const size = String(it.selectedSize || "M").trim();
+      const currentStock = prodInv[size] !== undefined ? prodInv[size] : 0;
+      const requestedQty = Number(it.quantity || 1);
+      if (currentStock <= 0) {
+        return {
+          available: false,
+          error: `Size ${size} is SOLD OUT and no longer available to buy.`,
+        };
+      }
+      if (requestedQty > currentStock) {
+        return {
+          available: false,
+          error: `Only ${currentStock} pair${currentStock === 1 ? "" : "s"} remaining in Size ${size}. You requested ${requestedQty}.`,
+        };
+      }
+    }
+  }
+  return { available: true };
+}
+
+function deductInventory(items: any[]) {
+  const inv = getInventory();
+  let modified = false;
+  for (const it of items) {
+    const productId = it.product?.id || it.id || "oci-elite-2-gloves";
+    if (!inv[productId]) {
+      inv[productId] = { S: 5, M: 3, L: 4 };
+    }
+    const size = String(it.selectedSize || "M").trim();
+    const qty = Number(it.quantity || 1);
+    if (inv[productId][size] !== undefined) {
+      inv[productId][size] = Math.max(0, inv[productId][size] - qty);
+      modified = true;
+    }
+  }
+  if (modified) {
+    saveInventory(inv);
+  }
+}
+
 // Helper: Authoritative Order Calculation
 function computeAuthoritativeTotals(
   items: any[],
@@ -469,6 +561,15 @@ app.post("/api/paypal/create-order", async (req, res) => {
       });
     }
 
+    // 1.5 Strict Inventory Check (5 Small, 3 Medium, 4 Large)
+    const stockCheck = checkStockAvailability(items);
+    if (!stockCheck.available) {
+      return res.status(400).json({
+        error: "STOCK_LIMIT_EXCEEDED",
+        message: stockCheck.error || "Selected item is sold out.",
+      });
+    }
+
     // 2. Authoritative Price, Quantity, Discount & Shipping Recalculation
     let authoritativeTotals;
     try {
@@ -729,6 +830,13 @@ app.post("/api/paypal/capture-order", async (req, res) => {
     }
     orders = [finalOrder, ...orders.filter((o) => o.orderId !== finalOrder.orderId)];
     fs.writeFileSync(filePath, JSON.stringify(orders, null, 2), "utf-8");
+
+    // Strictly deduct purchased sizes from inventory
+    try {
+      deductInventory(totals.verifiedItems);
+    } catch (invErr) {
+      console.error("Error deducting inventory on capture:", invErr);
+    }
 
     // Email dispatch notice to store fulfillment
     try {
@@ -1016,6 +1124,16 @@ app.post("/api/orders", (req, res) => {
     }
     orders = [order, ...orders.filter((o) => o.orderId !== order.orderId)];
     fs.writeFileSync(filePath, JSON.stringify(orders, null, 2), "utf-8");
+
+    // Strictly deduct purchased sizes from inventory
+    if (Array.isArray(order.items)) {
+      try {
+        deductInventory(order.items);
+      } catch (e) {
+        console.error("Error deducting inventory in /api/orders:", e);
+      }
+    }
+
     res.json({ success: true, count: orders.length });
   } catch {
     res.status(400).json({ error: "Invalid order data" });
@@ -1026,6 +1144,40 @@ app.delete("/api/orders", checkAdminAuth, (req, res) => {
   const filePath = path.resolve(process.cwd(), "data/orders.json");
   fs.writeFileSync(filePath, "[]", "utf-8");
   res.json({ success: true, orders: [] });
+});
+
+// ==========================================
+// 6.7 Strict Inventory Management Endpoints
+// ==========================================
+app.get("/api/inventory", (req, res) => {
+  try {
+    const inv = getInventory();
+    return res.json({ success: true, inventory: inv });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/inventory/deduct", (req, res) => {
+  try {
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Items array is required" });
+    }
+    deductInventory(items);
+    return res.json({ success: true, inventory: getInventory() });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/inventory/reset", (req, res) => {
+  try {
+    saveInventory(JSON.parse(JSON.stringify(DEFAULT_INVENTORY)));
+    return res.json({ success: true, inventory: getInventory() });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ==========================================

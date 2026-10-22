@@ -15,6 +15,7 @@ interface CartDrawerProps {
   discountPercentage: number;
   onApplyPromo: (code: string) => boolean;
   onRemovePromo?: () => void;
+  inventory?: Record<string, number>;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -28,7 +29,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   appliedPromo,
   discountPercentage,
   onApplyPromo,
-  onRemovePromo
+  onRemovePromo,
+  inventory
 }) => {
   if (!isOpen) return null;
 
@@ -116,72 +118,90 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             ) : (
               items.map((item) => {
                 const itemTotal = (item.product.price + (item.personalization?.enabled ? 4.0 : 0)) * item.quantity;
-                return (
-                  <div
-                    key={item.cartItemId}
-                    className="flex gap-3.5 p-3 rounded-xl bg-zinc-900/90 border border-zinc-800"
-                  >
-                    {/* Thumbnail */}
-                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-black shrink-0 border border-zinc-700/60 p-1">
-                      <img
-                        src={item.product.images.front}
-                        alt={item.product.name}
-                        className="w-full h-full object-cover rounded"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
+                        const maxStock = inventory ? (inventory[item.selectedSize] ?? 99) : 99;
+                        const isSoldOut = maxStock <= 0;
 
-                    {/* Details */}
-                    <div className="flex-1 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-xs font-bold text-white uppercase tracking-tight line-clamp-1 font-['Outfit']">
-                            {item.product.name}
-                          </h4>
-                          <button
-                            onClick={() => onRemoveItem(item.cartItemId)}
-                            className="text-zinc-500 hover:text-red-400 transition-colors p-0.5"
-                            title="Remove"
+                        return (
+                          <div
+                            key={item.cartItemId}
+                            className={`flex gap-3.5 p-3 rounded-xl border ${
+                              isSoldOut ? 'bg-red-950/20 border-red-900/40' : 'bg-zinc-900/90 border border-zinc-800'
+                            }`}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        <div className="text-[11px] text-zinc-400 mt-0.5 space-y-0.5">
-                          <div>Size: <span className="text-zinc-200 font-semibold">{item.selectedSize}</span></div>
-                          <div>Cut: <span className="text-zinc-300">{item.selectedCut}</span></div>
-                          {item.personalization?.enabled && (
-                            <div className="text-[#d4af37] font-semibold text-[10px]">
-                              Wrist Print: "{item.personalization.text}" ({item.personalization.color} Foil)
+                            {/* Thumbnail */}
+                            <div className="w-20 h-20 rounded-lg overflow-hidden bg-black shrink-0 border border-zinc-700/60 p-1">
+                              <img
+                                src={item.product.images.front}
+                                alt={item.product.name}
+                                className="w-full h-full object-cover rounded"
+                                referrerPolicy="no-referrer"
+                              />
                             </div>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Quantity & Item Total */}
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800">
-                        <div className="flex items-center gap-2 bg-black rounded-md p-1 border border-zinc-800">
-                          <button
-                            onClick={() => onUpdateQuantity(item.cartItemId, -1)}
-                            className="p-1 text-zinc-400 hover:text-white"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                          <button
-                            onClick={() => onUpdateQuantity(item.cartItemId, 1)}
-                            className="p-1 text-zinc-400 hover:text-white"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <span className="text-xs font-black text-white">
-                          {formatPrice(itemTotal, currency)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
+                            {/* Details */}
+                            <div className="flex-1 flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <h4 className="text-xs font-bold text-white uppercase tracking-tight line-clamp-1 font-['Outfit']">
+                                    {item.product.name}
+                                  </h4>
+                                  <button
+                                    onClick={() => onRemoveItem(item.cartItemId)}
+                                    className="text-zinc-500 hover:text-red-400 transition-colors p-0.5"
+                                    title="Remove"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                <div className="text-[11px] text-zinc-400 mt-0.5 space-y-0.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>Size: <span className="text-zinc-200 font-semibold">{item.selectedSize}</span></span>
+                                    {isSoldOut ? (
+                                      <span className="text-red-400 text-[10px] font-black uppercase tracking-tight bg-red-950/80 px-1.5 py-0.5 rounded border border-red-800">
+                                        Sold Out
+                                      </span>
+                                    ) : item.quantity >= maxStock ? (
+                                      <span className="text-[#e5b338] text-[10px] font-bold">
+                                        Max in stock ({maxStock})
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div>Cut: <span className="text-zinc-300">{item.selectedCut}</span></div>
+                                  {item.personalization?.enabled && (
+                                    <div className="text-[#d4af37] font-semibold text-[10px]">
+                                      Wrist Print: "{item.personalization.text}" ({item.personalization.color} Foil)
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Quantity & Item Total */}
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800">
+                                <div className="flex items-center gap-2 bg-black rounded-md p-1 border border-zinc-800">
+                                  <button
+                                    onClick={() => onUpdateQuantity(item.cartItemId, -1)}
+                                    className="p-1 text-zinc-400 hover:text-white"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                                  <button
+                                    onClick={() => onUpdateQuantity(item.cartItemId, 1)}
+                                    disabled={item.quantity >= maxStock}
+                                    className="p-1 text-zinc-400 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed"
+                                    title={item.quantity >= maxStock ? `Only ${maxStock} in stock` : undefined}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <span className="text-xs font-black text-white">
+                                  {formatPrice(itemTotal, currency)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
               })
             )}
           </div>
@@ -297,15 +317,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
 
               {/* Checkout Button */}
-              <button
-                id="drawer-proceed-to-checkout-btn"
-                onClick={onProceedToCheckout}
-                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-110 active:scale-98 transition-all cursor-pointer shadow-lg shadow-[#d4af37]/20"
-              >
-                <Lock className="w-4 h-4 text-black" />
-                <span>Proceed To Secure Checkout</span>
-                <ArrowRight className="w-4 h-4 text-black" />
-              </button>
+              {items.some((item) => inventory && (inventory[item.selectedSize] ?? 99) <= 0) ? (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-red-400 font-bold text-center">
+                    One or more items in your bag are sold out. Please remove them to continue.
+                  </p>
+                  <button
+                    disabled
+                    className="w-full py-3.5 px-6 rounded-xl bg-zinc-800 text-zinc-500 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 cursor-not-allowed opacity-60"
+                  >
+                    <Lock className="w-4 h-4 text-zinc-500" />
+                    <span>Proceed To Secure Checkout</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="drawer-proceed-to-checkout-btn"
+                  onClick={onProceedToCheckout}
+                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-110 active:scale-98 transition-all cursor-pointer shadow-lg shadow-[#d4af37]/20"
+                >
+                  <Lock className="w-4 h-4 text-black" />
+                  <span>Proceed To Secure Checkout</span>
+                  <ArrowRight className="w-4 h-4 text-black" />
+                </button>
+              )}
 
               <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-400 pt-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />

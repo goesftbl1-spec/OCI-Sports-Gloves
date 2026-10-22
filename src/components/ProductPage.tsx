@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, GloveSize, Currency, Review } from '../types';
 import { formatPrice } from '../utils/formatters';
 import { 
@@ -45,8 +45,74 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   onApplyPromo,
   onRemovePromo
 }) => {
-  const [selectedSize, setSelectedSize] = useState<GloveSize>('M');
+  // Authoritative stock calculation: 5 Small, 3 Medium, 4 Large
+  const sizeStockMap = useMemo(() => {
+    const map: Record<GloveSize, { inStock: boolean; count: number }> = {
+      S: { inStock: true, count: 5 },
+      M: { inStock: true, count: 3 },
+      L: { inStock: true, count: 4 },
+      'Youth M': { inStock: false, count: 0 },
+      'Youth L': { inStock: false, count: 0 },
+      'Adult S': { inStock: false, count: 0 },
+      'Adult M': { inStock: false, count: 0 },
+      'Adult L': { inStock: false, count: 0 },
+      'Adult XL': { inStock: false, count: 0 },
+      'Adult XXL': { inStock: false, count: 0 }
+    };
+
+    if (product?.sizes && Array.isArray(product.sizes)) {
+      product.sizes.forEach((s) => {
+        const count = typeof s.stockCount === 'number' ? Math.max(0, s.stockCount) : (s.inStock ? 1 : 0);
+        map[s.size] = {
+          inStock: count > 0 && s.inStock !== false,
+          count
+        };
+      });
+    }
+
+    return map;
+  }, [product?.sizes]);
+
+  // Initial size selection: default to M if in stock, otherwise first available in-stock size
+  const [selectedSize, setSelectedSize] = useState<GloveSize>(() => {
+    if (product?.sizes && Array.isArray(product.sizes)) {
+      const mSize = product.sizes.find((s) => s.size === 'M');
+      if (mSize && mSize.stockCount > 0) return 'M';
+      const available = product.sizes.find((s) => s.stockCount > 0);
+      if (available) return available.size;
+    }
+    return 'M';
+  });
+
+  const currentSizeStock = sizeStockMap[selectedSize]?.count ?? 0;
+  const isCurrentSizeSoldOut = currentSizeStock <= 0;
+  const allSizesSoldOut = (['S', 'M', 'L'] as GloveSize[]).every(
+    (sz) => (sizeStockMap[sz]?.count ?? 0) <= 0
+  );
+
+  // If the active size sells out, automatically fall back to the first available in-stock size
+  useEffect(() => {
+    const currentInfo = sizeStockMap[selectedSize];
+    if (!currentInfo || currentInfo.count <= 0) {
+      const firstAvailable = (['S', 'M', 'L'] as GloveSize[]).find(
+        (sz) => (sizeStockMap[sz]?.count ?? 0) > 0
+      );
+      if (firstAvailable) {
+        setSelectedSize(firstAvailable);
+      }
+    }
+  }, [sizeStockMap, selectedSize]);
+
   const [quantity, setQuantity] = useState(1);
+
+  // Keep quantity clamped to remaining available stock
+  useEffect(() => {
+    if (currentSizeStock > 0 && quantity > currentSizeStock) {
+      setQuantity(currentSizeStock);
+    } else if (currentSizeStock <= 0) {
+      setQuantity(1);
+    }
+  }, [currentSizeStock, quantity]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideDirection, setSlideDirection] = useState<number>(1);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -84,14 +150,23 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 
   // Editing triggers: when the user edits options (size, quantity) on the product page
   const handleSelectSize = (sz: GloveSize) => {
+    const info = sizeStockMap[sz];
+    // Guard: strictly ignore clicks on sold-out sizes
+    if (!info || info.count <= 0) return;
+
     setSelectedSize(sz);
+    if (quantity > info.count) {
+      setQuantity(info.count);
+    }
     if (!appliedPromo && !hasDismissedToast) {
       setShowDiscountToast(true);
     }
   };
 
   const handleUpdateQuantity = (newQty: number) => {
-    setQuantity(newQty);
+    if (currentSizeStock <= 0) return;
+    const clamped = Math.max(1, Math.min(currentSizeStock, newQty));
+    setQuantity(clamped);
     if (!appliedPromo && !hasDismissedToast) {
       setShowDiscountToast(true);
     }
@@ -193,7 +268,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             className="group flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-400 hover:text-white font-semibold transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
-            <span>Back</span>
+            <span>Back to Collection</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -364,6 +439,11 @@ export const ProductPage: React.FC<ProductPageProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold uppercase tracking-wider text-zinc-400 text-[11px]">
                   Size: <span className="text-white font-black">{selectedSize}</span>
+                  {isCurrentSizeSoldOut ? (
+                    <span className="ml-2 text-red-400 font-bold text-[10px] uppercase tracking-wider">(Sold Out)</span>
+                  ) : (
+                    <span className="ml-2 text-[#e5b338] font-bold text-[10px] uppercase tracking-wider">({currentSizeStock} available)</span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -375,22 +455,45 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                 </button>
               </div>
 
+              {/* Exact size limits: 5 Small, 3 Medium, 4 Large */}
               <div className="grid grid-cols-3 gap-2">
                 {(['S', 'M', 'L'] as GloveSize[]).map((sz) => {
-                  const isSelected = selectedSize === sz;
+                  const info = sizeStockMap[sz] || { inStock: false, count: 0 };
+                  const isSoldOut = info.count <= 0;
+                  const isSelected = selectedSize === sz && !isSoldOut;
+
                   return (
                     <motion.button
                       key={sz}
                       type="button"
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleSelectSize(sz)}
-                      className={`py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all border cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#e5b338] text-black border-[#e5b338]'
-                          : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                      disabled={isSoldOut}
+                      whileTap={isSoldOut ? undefined : { scale: 0.97 }}
+                      onClick={() => !isSoldOut && handleSelectSize(sz)}
+                      className={`relative py-2.5 px-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all border flex flex-col items-center justify-center gap-0.5 ${
+                        isSoldOut
+                          ? 'bg-zinc-950/70 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-50 select-none'
+                          : isSelected
+                          ? 'bg-[#e5b338] text-black border-[#e5b338] shadow-md shadow-[#e5b338]/20 cursor-pointer'
+                          : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900 cursor-pointer'
                       }`}
+                      title={isSoldOut ? `Size ${sz} is Sold Out` : `${info.count} pairs available in Size ${sz}`}
                     >
-                      {sz}
+                      <span className={`text-xs ${isSoldOut ? 'line-through text-zinc-600' : ''}`}>
+                        {sz}
+                      </span>
+                      {isSoldOut ? (
+                        <span className="text-[9px] font-black uppercase tracking-tight text-red-500 leading-none">
+                          Sold Out
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[9px] font-bold uppercase tracking-tight leading-none ${
+                            isSelected ? 'text-black/80 font-extrabold' : 'text-amber-400'
+                          }`}
+                        >
+                          {info.count} left
+                        </span>
+                      )}
                     </motion.button>
                   );
                 })}
@@ -406,24 +509,36 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             >
               {/* Stepper placed above the Buy Now button */}
               <div className="flex items-center justify-between">
-                <span className="font-bold uppercase tracking-wider text-zinc-400 text-[11px]">
-                  Quantity
-                </span>
+                <div>
+                  <span className="font-bold uppercase tracking-wider text-zinc-400 text-[11px] block">
+                    Quantity
+                  </span>
+                  <span className="text-[10px] text-zinc-500">
+                    {isCurrentSizeSoldOut
+                      ? 'Size currently unavailable'
+                      : `Max ${currentSizeStock} available to buy`}
+                  </span>
+                </div>
                 <div className="flex items-center rounded-lg bg-zinc-950 border border-zinc-800 p-0.5">
                   <button
                     type="button"
+                    disabled={quantity <= 1 || isCurrentSizeSoldOut}
                     onClick={() => handleUpdateQuantity(Math.max(1, quantity - 1))}
-                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850"
+                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850 disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Decrease quantity"
                   >
                     -
                   </button>
                   <span className="w-8 text-center font-black text-xs text-white">
-                    {quantity}
+                    {isCurrentSizeSoldOut ? 0 : quantity}
                   </span>
                   <button
                     type="button"
+                    disabled={quantity >= currentSizeStock || isCurrentSizeSoldOut}
                     onClick={() => handleUpdateQuantity(quantity + 1)}
-                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850"
+                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={quantity >= currentSizeStock ? `Only ${currentSizeStock} in stock` : undefined}
+                    aria-label="Increase quantity"
                   >
                     +
                   </button>
@@ -542,29 +657,44 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                 )}
               </div>
 
-              {/* Direct Buy Now Button without 14.99 price inside */}
-              <motion.button
-                id="buy-now-btn"
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onBuyNow(product, selectedSize, quantity)}
-                className="relative overflow-hidden w-full py-3 px-4 rounded-lg bg-[#e5b338] hover:bg-[#f5df88] text-black font-black text-xs sm:text-sm uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg text-center"
-              >
-                {/* Glare sweep loop animation */}
-                <motion.div
-                  className="absolute -inset-y-4 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent skew-x-[-25deg] pointer-events-none"
-                  animate={{ x: ['-150%', '350%'] }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 2.2,
-                    ease: 'easeInOut',
-                    repeatDelay: 1.2
-                  }}
-                />
-                <span className="relative z-10">BUY NOW</span>
-                <ArrowRight className="relative z-10 w-4 h-4" />
-              </motion.button>
+              {/* Direct Buy Now Button / Sold Out State */}
+              {isCurrentSizeSoldOut || allSizesSoldOut ? (
+                <button
+                  id="buy-now-btn"
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 px-4 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-not-allowed opacity-60 text-center select-none"
+                >
+                  <span>
+                    {allSizesSoldOut
+                      ? 'ALL SIZES SOLD OUT'
+                      : `SOLD OUT IN SIZE ${selectedSize}`}
+                  </span>
+                </button>
+              ) : (
+                <motion.button
+                  id="buy-now-btn"
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onBuyNow(product, selectedSize, quantity)}
+                  className="group relative overflow-hidden w-full py-3.5 px-4 rounded-lg bg-[#e5b338] hover:bg-[#f5df88] text-black font-black text-xs sm:text-sm uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg text-center"
+                >
+                  {/* Glare sweep loop animation */}
+                  <motion.div
+                    className="absolute -inset-y-4 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent skew-x-[-25deg] pointer-events-none"
+                    animate={{ x: ['-150%', '350%'] }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 2.2,
+                      ease: 'easeInOut',
+                      repeatDelay: 1.2
+                    }}
+                  />
+                  <span className="relative z-10 font-black">BUY NOW</span>
+                  <ArrowRight className="relative z-10 w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                </motion.button>
+              )}
             </motion.div>
 
           </motion.div>

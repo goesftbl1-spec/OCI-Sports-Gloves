@@ -14,14 +14,15 @@ import { LiveChatWidget } from './components/LiveChatWidget';
 import { NotificationToast, ToastMessage } from './components/NotificationToast';
 import { OrdersDispatchModal } from './components/OrdersDispatchModal';
 import { OrderDetailsPage } from './components/OrderDetailsPage';
+import { CollectionPage } from './components/CollectionPage';
 import { Lock } from 'lucide-react';
 
-import { SINGLE_PRODUCT, REVIEWS } from './data/mockData';
+import { SINGLE_PRODUCT, PRODUCTS, REVIEWS } from './data/mockData';
 import { Product, CartItem, GloveSize, Currency, Review, Order } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<'home' | 'product'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'collection' | 'product'>('home');
   const [currency, setCurrency] = useState<Currency>('EUR');
   
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
@@ -36,7 +37,67 @@ export default function App() {
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [discountPercentage, setDiscountPercentage] = useState<number>(0);
   const [reviews, setReviews] = useState<Review[]>(REVIEWS);
-  const product: Product = SINGLE_PRODUCT;
+  const [selectedProduct, setSelectedProduct] = useState<Product>(SINGLE_PRODUCT);
+
+  // Exact inventory tracking: 5 Small, 3 Medium, 4 Large
+  const [inventory, setInventory] = useState<Record<GloveSize, number>>(() => {
+    try {
+      const saved = localStorage.getItem('oci_inventory_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      S: 5,
+      M: 3,
+      L: 4,
+    } as Record<GloveSize, number>;
+  });
+
+  // Sync with authoritative server inventory on load
+  useEffect(() => {
+    fetch('/api/inventory')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.inventory?.['oci-elite-2-gloves']) {
+          const inv = data.inventory['oci-elite-2-gloves'];
+          setInventory((prev) => ({
+            ...prev,
+            S: typeof inv.S === 'number' ? inv.S : prev.S,
+            M: typeof inv.M === 'number' ? inv.M : prev.M,
+            L: typeof inv.L === 'number' ? inv.L : prev.L,
+          }));
+        }
+      })
+      .catch((e) => console.warn('Could not fetch server inventory:', e));
+  }, []);
+
+  // Persist inventory state locally
+  useEffect(() => {
+    try {
+      localStorage.setItem('oci_inventory_v1', JSON.stringify(inventory));
+    } catch (e) {
+      console.warn('Could not save inventory to localStorage:', e);
+    }
+  }, [inventory]);
+
+  // Dynamically update product sizes with live inventory counts and inStock flags
+  const activeProduct = React.useMemo(() => {
+    const sStock = inventory['S'] !== undefined ? inventory['S'] : 5;
+    const mStock = inventory['M'] !== undefined ? inventory['M'] : 3;
+    const lStock = inventory['L'] !== undefined ? inventory['L'] : 4;
+
+    return {
+      ...selectedProduct,
+      sizes: [
+        { size: 'S' as GloveSize, inStock: sStock > 0, stockCount: sStock },
+        { size: 'M' as GloveSize, inStock: mStock > 0, stockCount: mStock },
+        { size: 'L' as GloveSize, inStock: lStock > 0, stockCount: lStock },
+      ],
+    };
+  }, [selectedProduct, inventory]);
+
+  const activeProducts = React.useMemo(() => {
+    return [activeProduct];
+  }, [activeProduct]);
 
   // Modals & Drawers
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -109,11 +170,34 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const handleAddToCart = (product: Product, size: GloveSize, quantity: number = 1) => {
+  const handleAddToCart = (product: Product, size: GloveSize, quantity: number = 1): boolean => {
+    const stockAvailable = inventory[size] !== undefined ? inventory[size] : 0;
+    if (stockAvailable <= 0) {
+      addToast('Size Sold Out', `Size ${size} is currently sold out and cannot be purchased.`);
+      return false;
+    }
+
     const cartItemId = `${product.id}-${size}`;
+    const existing = cartItems.find((item) => item.cartItemId === cartItemId);
+    const existingQty = existing ? existing.quantity : 0;
+    const requestedTotal = existingQty + quantity;
+
+    if (requestedTotal > stockAvailable) {
+      if (existingQty >= stockAvailable) {
+        addToast('Stock Limit Reached', `Only ${stockAvailable} available in Size ${size}. You already have ${existingQty} in your match bag.`);
+        return false;
+      }
+      const allowedAdd = stockAvailable - existingQty;
+      setCartItems((prev) =>
+        prev.map((item) =>
+          item.cartItemId === cartItemId ? { ...item, quantity: stockAvailable } : item
+        )
+      );
+      addToast('Bag Adjusted to Max Stock', `Added ${allowedAdd} pair${allowedAdd > 1 ? 's' : ''} (all ${stockAvailable} remaining in Size ${size}).`);
+      return true;
+    }
 
     setCartItems((prev) => {
-      const existing = prev.find((item) => item.cartItemId === cartItemId);
       if (existing) {
         return prev.map((item) =>
           item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + quantity } : item
@@ -132,11 +216,19 @@ export default function App() {
     });
 
     addToast('Added to Match Bag', `${product.name} (Size ${size})`);
+    return true;
   };
 
   const handleBuyNow = (product: Product, size: GloveSize, quantity: number = 1) => {
-    handleAddToCart(product, size, quantity);
-    setIsCheckoutOpen(true);
+    const stockAvailable = inventory[size] !== undefined ? inventory[size] : 0;
+    if (stockAvailable <= 0) {
+      addToast('Size Sold Out', `Size ${size} is sold out. Please select another size.`);
+      return;
+    }
+    const added = handleAddToCart(product, size, quantity);
+    if (added) {
+      setIsCheckoutOpen(true);
+    }
   };
 
   const handleUpdateQuantity = (cartItemId: string, delta: number) => {
@@ -145,7 +237,13 @@ export default function App() {
         .map((item) => {
           if (item.cartItemId === cartItemId) {
             const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
+            if (newQty <= 0) return null;
+            const stockAvailable = inventory[item.selectedSize] !== undefined ? inventory[item.selectedSize] : 99;
+            if (delta > 0 && newQty > stockAvailable) {
+              addToast('Maximum Stock Reached', `Only ${stockAvailable} pair${stockAvailable === 1 ? '' : 's'} available in Size ${item.selectedSize}.`);
+              return item;
+            }
+            return { ...item, quantity: newQty };
           }
           return item;
         })
@@ -200,6 +298,28 @@ export default function App() {
 
   const handleOrderCompleted = (order: Order) => {
     setRecentOrders((prev) => [order, ...prev]);
+
+    // Strictly deduct purchased sizes from active inventory
+    if (Array.isArray(order.items)) {
+      setInventory((prev) => {
+        const next = { ...prev };
+        order.items.forEach((it) => {
+          const sz = it.selectedSize;
+          if (next[sz] !== undefined) {
+            next[sz] = Math.max(0, next[sz] - it.quantity);
+          }
+        });
+        return next;
+      });
+
+      // Synchronize deduction with server
+      fetch('/api/inventory/deduct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: order.items }),
+      }).catch((e) => console.warn('Could not sync inventory deduction to server:', e));
+    }
+
     addToast('Order Dispatched', `Order #${order.orderId} logged & dispatched to contactocisports@gmail.com`);
   };
 
@@ -242,10 +362,35 @@ export default function App() {
             >
               <Hero 
                 onShopNow={() => {
-                  setCurrentPage('product');
+                  setCurrentPage('collection');
                   window.scrollTo({ top: 0, behavior: 'instant' });
                 }} 
                 onViewReviews={() => setIsReviewsModalOpen(true)}
+              />
+            </motion.div>
+          ) : currentPage === 'collection' ? (
+            <motion.div
+              key="collection"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex-1 flex flex-col"
+            >
+              <CollectionPage
+                products={activeProducts}
+                currency={currency}
+                onSelectProduct={(prod) => {
+                  setSelectedProduct(prod);
+                  setCurrentPage('product');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+                onBackToHome={() => {
+                  setCurrentPage('home');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+                onAddToCart={handleAddToCart}
+                onOpenSizingModal={() => setIsSizingModalOpen(true)}
               />
             </motion.div>
           ) : (
@@ -258,10 +403,10 @@ export default function App() {
               className="flex-1 flex flex-col"
             >
               <ProductPage
-                product={product}
+                product={activeProduct}
                 currency={currency}
                 onBackToHome={() => {
-                  setCurrentPage('home');
+                  setCurrentPage('collection');
                   window.scrollTo({ top: 0, behavior: 'instant' });
                 }}
                 onAddToCart={handleAddToCart}
@@ -348,6 +493,7 @@ export default function App() {
         discountPercentage={discountPercentage}
         onApplyPromo={handleApplyPromo}
         onRemovePromo={handleRemovePromo}
+        inventory={inventory}
       />
 
       {/* Multi-Step Secure Checkout Modal */}
