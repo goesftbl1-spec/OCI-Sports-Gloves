@@ -233,22 +233,36 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {product.sizes.map((s) => (
-                  <button
-                    key={s.size}
-                    disabled={!s.inStock}
-                    onClick={() => setSelectedSize(s.size)}
-                    className={`py-2 text-xs font-black rounded-lg uppercase transition-all ${
-                      selectedSize === s.size
-                        ? 'bg-[#d4af37] text-black shadow-md'
-                        : s.inStock
-                        ? 'bg-zinc-900 text-zinc-200 border border-zinc-700 hover:border-zinc-500'
-                        : 'bg-zinc-950 text-zinc-600 line-through cursor-not-allowed border border-zinc-900'
-                    }`}
-                  >
-                    {s.size.replace('Adult ', '').replace('Youth ', 'Y-')}
-                  </button>
-                ))}
+                {product.sizes.map((s) => {
+                  const isSoldOut = !s.inStock || s.stockCount <= 0;
+                  const isSelected = selectedSize === s.size;
+                  return (
+                    <button
+                      key={s.size}
+                      type="button"
+                      onClick={() => setSelectedSize(s.size)}
+                      className={`relative overflow-hidden py-2 text-xs font-black rounded-lg uppercase transition-all flex flex-col items-center justify-center select-none ${
+                        isSoldOut
+                          ? isSelected
+                            ? 'bg-zinc-950 text-zinc-500 border border-red-500/40 ring-1 ring-red-500/30 cursor-not-allowed opacity-60'
+                            : 'bg-zinc-950 text-zinc-600 line-through cursor-not-allowed border border-zinc-900 opacity-40 hover:opacity-50'
+                          : isSelected
+                          ? 'bg-[#d4af37] text-black shadow-md cursor-pointer'
+                          : 'bg-zinc-900 text-zinc-200 border border-zinc-700 hover:border-zinc-500 cursor-pointer'
+                      }`}
+                    >
+                      {isSoldOut && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                          <div className="w-[125%] h-[1.5px] bg-red-500/60 rotate-[-26deg]" />
+                        </div>
+                      )}
+                      <span>{s.size.replace('Adult ', '').replace('Youth ', 'Y-')}</span>
+                      {isSoldOut && (
+                        <span className="text-[8px] font-bold text-red-400 uppercase tracking-tight">Out</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -306,26 +320,47 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
           {/* Add to Cart CTA Button */}
           <div className="mt-6 pt-4 border-t border-zinc-800">
-            <button
-              id="modal-add-to-cart-btn"
-              onClick={handleAdd}
-              className={`w-full py-3.5 px-6 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-98 ${
-                isAdded
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black hover:brightness-110 shadow-[#d4af37]/20'
-              }`}
-            >
-              {isAdded ? (
-                <>
-                  <Check className="w-5 h-5" />
-                  <span>Added To Matchday Bag!</span>
-                </>
-              ) : (
-                <>
-                  <span>Add To Bag — {formatPrice(product.price + (personalize && playerNumber ? 4 : 0), currency)}</span>
-                </>
-              )}
-            </button>
+            {(() => {
+              const selectedSizeObj = product.sizes.find((s) => s.size === selectedSize);
+              const isSoldOut = !selectedSizeObj || !selectedSizeObj.inStock || selectedSizeObj.stockCount <= 0;
+
+              if (isSoldOut) {
+                return (
+                  <button
+                    id="modal-add-to-cart-btn"
+                    disabled
+                    aria-disabled="true"
+                    className="w-full py-3.5 px-6 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-50 shadow-none select-none pointer-events-none"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-red-500/80 inline-block" />
+                    <span>SOLD OUT IN SIZE {selectedSize.replace('Adult ', '').replace('Youth ', 'Y-')}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  id="modal-add-to-cart-btn"
+                  onClick={handleAdd}
+                  className={`w-full py-3.5 px-6 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-98 ${
+                    isAdded
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black hover:brightness-110 shadow-[#d4af37]/20'
+                  }`}
+                >
+                  {isAdded ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      <span>Added To Matchday Bag!</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Add To Bag — {formatPrice(product.price + (personalize && playerNumber ? 4 : 0), currency)}</span>
+                    </>
+                  )}
+                </button>
+              );
+            })()}
           </div>
 
         </div>

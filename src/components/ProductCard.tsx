@@ -137,51 +137,83 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
 
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
-            {product.sizes.map((s) => (
-              <button
-                key={s.size}
-                id={`size-pill-${product.id}-${s.size.replace(/\s+/g, '-').toLowerCase()}`}
-                disabled={!s.inStock}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedSize(s.size);
-                }}
-                className={`py-1 text-[10px] font-extrabold rounded uppercase transition-all ${
-                  selectedSize === s.size
-                    ? 'bg-[#d4af37] text-black shadow-sm font-black'
-                    : s.inStock
-                    ? 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
-                    : 'bg-zinc-950 text-zinc-600 border border-zinc-900 cursor-not-allowed line-through'
-                }`}
-                title={s.inStock ? `${s.size} in stock` : `${s.size} sold out`}
-              >
-                {s.size.replace('Adult ', '').replace('Youth ', 'Y-')}
-              </button>
-            ))}
+            {product.sizes.map((s) => {
+              const isSoldOut = !s.inStock || s.stockCount <= 0;
+              const isSelected = selectedSize === s.size;
+              return (
+                <button
+                  key={s.size}
+                  id={`size-pill-${product.id}-${s.size.replace(/\s+/g, '-').toLowerCase()}`}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedSize(s.size);
+                  }}
+                  className={`relative overflow-hidden py-1 text-[10px] font-extrabold rounded uppercase transition-all select-none ${
+                    isSoldOut
+                      ? isSelected
+                        ? 'bg-zinc-950 text-zinc-500 border border-red-500/40 ring-1 ring-red-500/30 cursor-not-allowed opacity-60'
+                        : 'bg-zinc-950 text-zinc-600 border border-zinc-900 cursor-not-allowed line-through opacity-40 hover:opacity-50'
+                      : isSelected
+                      ? 'bg-[#d4af37] text-black shadow-sm font-black'
+                      : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
+                  }`}
+                  title={isSoldOut ? `${s.size} is Sold Out` : `${s.size} in stock`}
+                >
+                  {isSoldOut && (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="w-[125%] h-[1px] bg-red-500/60 rotate-[-26deg]" />
+                    </div>
+                  )}
+                  <span>{s.size.replace('Adult ', '').replace('Youth ', 'Y-')}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Quick Add To Cart Button with Pop-up Confirmation */}
-          <button
-            id={`quick-add-btn-${product.id}`}
-            onClick={handleAddToCart}
-            className={`w-full mt-3.5 py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer ${
-              addedSuccess
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
-                : 'bg-zinc-900 hover:bg-[#d4af37] text-white hover:text-black border border-zinc-700 hover:border-[#d4af37] active:scale-[0.98]'
-            }`}
-          >
-            {addedSuccess ? (
-              <>
-                <Check className="w-4 h-4 text-white animate-bounce" />
-                <span>Added to Bag!</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Pair — {formatPrice(product.price, currency)}</span>
-              </>
-            )}
-          </button>
+          {/* Quick Add To Cart Button with Pop-up Confirmation / Sold Out Disabled Effect */}
+          {(() => {
+            const sizeObj = product.sizes.find((s) => s.size === selectedSize);
+            const isSoldOut = !sizeObj || !sizeObj.inStock || sizeObj.stockCount <= 0;
+
+            if (isSoldOut) {
+              return (
+                <button
+                  id={`quick-add-btn-${product.id}`}
+                  disabled
+                  aria-disabled="true"
+                  className="w-full mt-3.5 py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-50 shadow-none select-none pointer-events-none"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500/80 inline-block" />
+                  <span>Sold Out In Size {selectedSize.replace('Adult ', '').replace('Youth ', 'Y-')}</span>
+                </button>
+              );
+            }
+
+            return (
+              <button
+                id={`quick-add-btn-${product.id}`}
+                onClick={handleAddToCart}
+                className={`w-full mt-3.5 py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer ${
+                  addedSuccess
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                    : 'bg-zinc-900 hover:bg-[#d4af37] text-white hover:text-black border border-zinc-700 hover:border-[#d4af37] active:scale-[0.98]'
+                }`}
+              >
+                {addedSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-white animate-bounce" />
+                    <span>Added to Bag!</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Pair — {formatPrice(product.price, currency)}</span>
+                  </>
+                )}
+              </button>
+            );
+          })()}
         </div>
 
       </div>

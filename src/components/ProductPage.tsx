@@ -90,18 +90,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
     (sz) => (sizeStockMap[sz]?.count ?? 0) <= 0
   );
 
-  // If the active size sells out, automatically fall back to the first available in-stock size
-  useEffect(() => {
-    const currentInfo = sizeStockMap[selectedSize];
-    if (!currentInfo || currentInfo.count <= 0) {
-      const firstAvailable = (['S', 'M', 'L'] as GloveSize[]).find(
-        (sz) => (sizeStockMap[sz]?.count ?? 0) > 0
-      );
-      if (firstAvailable) {
-        setSelectedSize(firstAvailable);
-      }
-    }
-  }, [sizeStockMap, selectedSize]);
+
 
   const [quantity, setQuantity] = useState(1);
 
@@ -150,13 +139,13 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 
   // Editing triggers: when the user edits options (size, quantity) on the product page
   const handleSelectSize = (sz: GloveSize) => {
-    const info = sizeStockMap[sz];
-    // Guard: strictly ignore clicks on sold-out sizes
-    if (!info || info.count <= 0) return;
-
     setSelectedSize(sz);
-    if (quantity > info.count) {
-      setQuantity(info.count);
+    const info = sizeStockMap[sz];
+    if (info && info.count > 0) {
+      if (quantity < 1) setQuantity(1);
+      else if (quantity > info.count) setQuantity(info.count);
+    } else {
+      setQuantity(0);
     }
     if (!appliedPromo && !hasDismissedToast) {
       setShowDiscountToast(true);
@@ -187,7 +176,8 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   // Image list for swipe carousel
   const imageList = [
     { id: 'pair', label: 'Full Pair', src: product.images.front },
-    ...(product.images.back ? [{ id: 'detail', label: 'Logo Detail', src: product.images.back }] : [])
+    ...(product.images.back ? [{ id: 'detail', label: 'Logo Detail', src: product.images.back }] : []),
+    ...(product.images.palm ? [{ id: 'palm', label: 'Latex Palm', src: product.images.palm }] : [])
   ];
 
   // Safeguard current slide index
@@ -460,29 +450,37 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                 {(['S', 'M', 'L'] as GloveSize[]).map((sz) => {
                   const info = sizeStockMap[sz] || { inStock: false, count: 0 };
                   const isSoldOut = info.count <= 0;
-                  const isSelected = selectedSize === sz && !isSoldOut;
+                  const isSelected = selectedSize === sz;
 
                   return (
                     <motion.button
                       key={sz}
                       type="button"
-                      disabled={isSoldOut}
                       whileTap={isSoldOut ? undefined : { scale: 0.97 }}
-                      onClick={() => !isSoldOut && handleSelectSize(sz)}
-                      className={`relative py-2.5 px-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all border flex flex-col items-center justify-center gap-0.5 ${
+                      onClick={() => handleSelectSize(sz)}
+                      className={`relative overflow-hidden py-2.5 px-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all border flex flex-col items-center justify-center gap-0.5 select-none ${
                         isSoldOut
-                          ? 'bg-zinc-950/70 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-50 select-none'
+                          ? isSelected
+                            ? 'bg-zinc-950 text-zinc-500 border-red-500/50 ring-1 ring-red-500/30 cursor-not-allowed opacity-60'
+                            : 'bg-zinc-950/80 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-40 hover:opacity-60'
                           : isSelected
                           ? 'bg-[#e5b338] text-black border-[#e5b338] shadow-md shadow-[#e5b338]/20 cursor-pointer'
                           : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900 cursor-pointer'
                       }`}
-                      title={isSoldOut ? `Size ${sz} is Sold Out` : `${info.count} pairs available in Size ${sz}`}
+                      title={isSoldOut ? `Size ${sz} is Sold Out (0 in stock)` : `${info.count} pairs available in Size ${sz}`}
                     >
-                      <span className={`text-xs ${isSoldOut ? 'line-through text-zinc-600' : ''}`}>
+                      {/* Visual diagonal strikethrough disabled effect */}
+                      {isSoldOut && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                          <div className="w-[125%] h-[1.5px] bg-red-500/60 rotate-[-26deg]" />
+                        </div>
+                      )}
+
+                      <span className={`text-xs ${isSoldOut ? 'line-through decoration-red-500/70 text-zinc-500' : ''}`}>
                         {sz}
                       </span>
                       {isSoldOut ? (
-                        <span className="text-[9px] font-black uppercase tracking-tight text-red-500 leading-none">
+                        <span className="text-[9px] font-black uppercase tracking-tight text-red-400 leading-none">
                           Sold Out
                         </span>
                       ) : (
@@ -514,9 +512,11 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                     Quantity
                   </span>
                   <span className="text-[10px] text-zinc-500">
-                    {isCurrentSizeSoldOut
-                      ? 'Size currently unavailable'
-                      : `Max ${currentSizeStock} available to buy`}
+                    {isCurrentSizeSoldOut ? (
+                      <span className="text-red-400 font-bold uppercase tracking-wider">Size currently sold out</span>
+                    ) : (
+                      `Max ${currentSizeStock} available to buy`
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center rounded-lg bg-zinc-950 border border-zinc-800 p-0.5">
@@ -524,19 +524,19 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                     type="button"
                     disabled={quantity <= 1 || isCurrentSizeSoldOut}
                     onClick={() => handleUpdateQuantity(Math.max(1, quantity - 1))}
-                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm hover:bg-zinc-850 disabled:opacity-20 disabled:cursor-not-allowed select-none"
                     aria-label="Decrease quantity"
                   >
                     -
                   </button>
-                  <span className="w-8 text-center font-black text-xs text-white">
+                  <span className={`w-8 text-center font-black text-xs ${isCurrentSizeSoldOut ? 'text-zinc-600' : 'text-white'}`}>
                     {isCurrentSizeSoldOut ? 0 : quantity}
                   </span>
                   <button
                     type="button"
                     disabled={quantity >= currentSizeStock || isCurrentSizeSoldOut}
                     onClick={() => handleUpdateQuantity(quantity + 1)}
-                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-zinc-850 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-8 h-8 rounded text-zinc-400 hover:text-white flex items-center justify-center font-bold text-sm hover:bg-zinc-850 disabled:opacity-20 disabled:cursor-not-allowed select-none"
                     title={quantity >= currentSizeStock ? `Only ${currentSizeStock} in stock` : undefined}
                     aria-label="Increase quantity"
                   >
@@ -663,8 +663,10 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                   id="buy-now-btn"
                   type="button"
                   disabled
-                  className="w-full py-3.5 px-4 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-not-allowed opacity-60 text-center select-none"
+                  aria-disabled="true"
+                  className="w-full py-3.5 px-4 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-not-allowed opacity-50 shadow-none transition-all select-none hover:bg-zinc-900 pointer-events-none"
                 >
+                  <span className="w-2 h-2 rounded-full bg-red-500/80 shrink-0 inline-block" />
                   <span>
                     {allSizesSoldOut
                       ? 'ALL SIZES SOLD OUT'

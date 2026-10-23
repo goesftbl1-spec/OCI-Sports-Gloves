@@ -39,8 +39,8 @@ const VALID_PROMOS: Record<string, number> = {
 const PERSONALIZATION_FEE = 4.0;
 
 const SHIPPING_RATES: Record<string, { cost: number; name: string }> = {
-  standard: { cost: 3.99, name: "An Post Tracked (1-2 days)" },
-  dpd_express: { cost: 6.99, name: "DPD 24h GAA Matchday Express" },
+  standard: { cost: 3.99, name: "Tracked Express Delivery" },
+  dpd_express: { cost: 3.99, name: "Tracked Express Delivery" },
 };
 
 const IRISH_COUNTIES = [
@@ -1292,9 +1292,8 @@ STORE KNOWLEDGE BASE (GROUND TRUTH - NEVER CONTRADICT OR INVENT OUTSIDE OF THIS)
 3. SHIPPING & DELIVERY:
 - Ships to: ALL 32 counties of Ireland (Galway, Dublin, Cork, Kerry, Mayo, Donegal, etc.) and UK / Worldwide.
 - Same-Day Dispatch: Orders placed before 2:00 PM (Monday-Friday) dispatch SAME DAY from Ireland.
-- Standard Shipping: An Post Tracked (1–2 business days across Ireland) — €3.99.
-- Express Shipping: DPD 24h GAA Matchday Express (next business day) — €6.99.
-- Tracking: Tracking links are sent to the customer's email as soon as the package is scanned by An Post or DPD.
+- Tracked Delivery: 1–2 business days across all 32 counties — €3.99 flat shipping fee.
+- Tracking: Tracking links are sent to the customer's email as soon as the package is dispatched.
 
 4. PAYMENT METHODS:
 - Accepted: Debit and Credit cards (Visa, Mastercard, Maestro) and PayPal.
@@ -1410,7 +1409,7 @@ function generateSmartLocalResponse(
     q.includes("location") ||
     q.includes("counties")
   ) {
-    return "Yes! We ship to **all 32 counties across Ireland** (including Galway, Dublin, Cork, Kerry, Mayo, and beyond), as well as the UK and worldwide.\n\n• **An Post Tracked**: 1–2 business days (€3.99)\n• **DPD 24h GAA Matchday Express**: Next business day (€6.99)\n\nOrders placed before 2:00 PM dispatch same-day from Ireland!";
+    return "Yes! We ship to **all 32 counties across Ireland** (including Galway, Dublin, Cork, Kerry, Mayo, and beyond), as well as the UK and worldwide.\n\n• **Tracked Express Delivery**: 1–2 business days (€3.99)\n\nOrders placed before 2:00 PM dispatch same-day from Ireland!";
   }
 
   // 5. Sizes / Sizing
@@ -1460,7 +1459,7 @@ function generateSmartLocalResponse(
     q.includes("dispatch time") ||
     q.includes("shipping time")
   ) {
-    return "Orders placed before **2:00 PM (Monday–Friday) dispatch same-day** from Ireland!\n\n• **An Post Tracked**: 1–2 business days across Ireland (€3.99)\n• **DPD 24h Matchday Express**: Next business day delivery (€6.99)\n\nYou will receive an email with your official tracking number as soon as your package is dispatched.";
+    return "Orders placed before **2:00 PM (Monday–Friday) dispatch same-day** from Ireland!\n\n• **Tracked Express Delivery**: 1–2 business days across Ireland (€3.99)\n\nYou will receive an email with your official tracking number as soon as your package is dispatched.";
   }
 
   // 9. Payment Methods

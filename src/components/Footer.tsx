@@ -126,7 +126,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, o
               GAA Clubs & Logistics
             </h4>
             <ul className="space-y-2 text-xs text-zinc-400">
-              <li><span className="text-zinc-200">Ireland:</span> An Post & DPD 24h Express</li>
+              <li><span className="text-zinc-200">Ireland:</span> Tracked Express Delivery</li>
               <li><span className="text-zinc-200">UK & Worldwide:</span> Tracked Air Express</li>
               <li>
                 <span className="text-zinc-200">Email:</span>{' '}

@@ -52,22 +52,32 @@ export default function App() {
     } as Record<GloveSize, number>;
   });
 
-  // Sync with authoritative server inventory on load
+  // Sync with authoritative server inventory on load and periodic intervals
   useEffect(() => {
-    fetch('/api/inventory')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.inventory?.['oci-elite-2-gloves']) {
-          const inv = data.inventory['oci-elite-2-gloves'];
-          setInventory((prev) => ({
-            ...prev,
-            S: typeof inv.S === 'number' ? inv.S : prev.S,
-            M: typeof inv.M === 'number' ? inv.M : prev.M,
-            L: typeof inv.L === 'number' ? inv.L : prev.L,
-          }));
-        }
-      })
-      .catch((e) => console.warn('Could not fetch server inventory:', e));
+    const fetchLiveInventory = () => {
+      fetch('/api/inventory')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.inventory?.['oci-elite-2-gloves']) {
+            const inv = data.inventory['oci-elite-2-gloves'];
+            setInventory((prev) => ({
+              ...prev,
+              S: typeof inv.S === 'number' ? inv.S : prev.S,
+              M: typeof inv.M === 'number' ? inv.M : prev.M,
+              L: typeof inv.L === 'number' ? inv.L : prev.L,
+            }));
+          }
+        })
+        .catch((e) => console.warn('Could not fetch server inventory:', e));
+    };
+
+    fetchLiveInventory();
+    const interval = setInterval(fetchLiveInventory, 3500);
+    window.addEventListener('focus', fetchLiveInventory);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchLiveInventory);
+    };
   }, []);
 
   // Persist inventory state locally

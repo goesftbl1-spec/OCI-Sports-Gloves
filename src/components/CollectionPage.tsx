@@ -3,6 +3,7 @@ import { ArrowLeft, Heart } from 'lucide-react';
 import { Product, Currency } from '../types';
 import { formatPrice } from '../utils/formatters';
 import { motion } from 'motion/react';
+import bothGloveImage from '../assets/images/Both .jpg';
 
 interface CollectionPageProps {
   products: Product[];
@@ -92,7 +93,7 @@ export const CollectionPage: React.FC<CollectionPageProps> = ({
 
                   {/* Product Image Stage (Flips angle on hover) */}
                   <img
-                    src={isHovered && product.images.back ? product.images.back : product.images.front}
+                    src={isHovered && product.images.back ? product.images.back : (product.images.front || bothGloveImage)}
                     alt={product.name}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-106 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"

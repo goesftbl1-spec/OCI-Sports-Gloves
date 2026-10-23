@@ -159,9 +159,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const discountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
   const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
 
-  const standardShippingCost = 3.99;
-  const expressShippingCost = 6.99;
-  const shippingCost = shippingMethod === 'standard' ? standardShippingCost : expressShippingCost;
+  const shippingCost = 3.99;
   const grandTotal = Number((discountedSubtotal + shippingCost).toFixed(2));
 
   // Handle Shipping Submit with Address Validation
@@ -573,49 +571,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Courier Dispatch Option */}
+            {/* Tracked Shipping Fee */}
             <div className="pt-2">
               <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 block mb-2">
-                Select Dispatch Courier Service
+                Shipping Fee
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShippingMethod('standard')}
-                  className={`p-3 rounded-xl border text-left flex items-start justify-between cursor-pointer transition-all ${
-                    shippingMethod === 'standard'
-                      ? 'bg-zinc-850 border-[#d4af37] text-white ring-1 ring-[#d4af37]/40'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <Truck className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-xs text-white">An Post Tracked</div>
-                      <div className="text-[11px] text-zinc-400">1-2 Working Days (All 32 Counties)</div>
-                    </div>
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Truck className="w-4 h-4 text-[#d4af37] shrink-0" />
+                  <div>
+                    <div className="font-bold text-xs text-white">Tracked Delivery</div>
+                    <div className="text-[11px] text-zinc-400">1-2 Working Days (All 32 Counties)</div>
                   </div>
-                  <span className="text-xs font-bold text-white">€3.99</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShippingMethod('dpd_express')}
-                  className={`p-3 rounded-xl border text-left flex items-start justify-between cursor-pointer transition-all ${
-                    shippingMethod === 'dpd_express'
-                      ? 'bg-zinc-850 border-[#d4af37] text-white ring-1 ring-[#d4af37]/40'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <Truck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-xs text-white">DPD Matchday Express</div>
-                      <div className="text-[11px] text-zinc-400">Next-Day Priority with 1h SMS Window</div>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-white">€6.99</span>
-                </button>
+                </div>
+                <span className="text-xs font-bold text-white">{formatPrice(shippingCost, currency)}</span>
               </div>
             </div>
 
@@ -697,9 +666,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               )}
               <div className="flex justify-between text-zinc-400">
-                <span>
-                  Courier ({shippingMethod === 'standard' ? 'An Post Tracked' : 'DPD GAA Matchday 24h'})
-                </span>
+                <span>Tracked Shipping Fee</span>
                 <span className="text-white font-medium">{formatPrice(shippingCost, currency)}</span>
               </div>
               <div className="flex justify-between text-sm font-black text-white pt-2 border-t border-zinc-800">

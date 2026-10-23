@@ -46,6 +46,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const discountAmount = (subtotal * discountPercentage) / 100;
   const finalSubtotal = subtotal - discountAmount;
+  const shippingFee = items.length > 0 ? 3.99 : 0;
+  const totalWithShipping = finalSubtotal + shippingFee;
 
   const handlePromoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,15 +305,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>Tracked Dispatch</span>
+                  <span>Tracked Shipping Fee</span>
                   <span className="text-white font-semibold">
-                    Calculated at checkout
+                    {formatPrice(shippingFee, currency)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm font-black text-white pt-2 border-t border-zinc-800">
                   <span className="uppercase">Total Due</span>
                   <span className="text-gold-gradient text-base font-black font-['Outfit']">
-                    {formatPrice(finalSubtotal, currency)}
+                    {formatPrice(totalWithShipping, currency)}
                   </span>
                 </div>
               </div>

@@ -1,4 +1,7 @@
 import { Product, Review, GloveSize } from '../types';
+import bothGloveImage from '../assets/images/Both .jpg';
+import bigLogoGlovesImage from '../assets/images/Big logo gloves.jpeg';
+import latexPalmImage from '../assets/images/Latex.jpeg';
 
 export const HERO_IMAGE = '/ocigloves1.jpeg';
 
@@ -12,9 +15,9 @@ export const SINGLE_PRODUCT: Product = {
   rating: 4.7,
   reviewCount: 3,
   images: {
-    front: '/ocigloves1.jpeg',
-    back: '/ocigloves2.jpeg',
-    palm: '/ocigloves1.jpeg',
+    front: bothGloveImage,
+    back: bigLogoGlovesImage,
+    palm: latexPalmImage,
   },
   description: 'OCI SPORTS GAA Gloves are designed to last. — whether it’s rain, muck, snow or sunshine.\nAny Condition. We Have You Covered. OCI Sports.',
   cut: 'Negative Cut',
