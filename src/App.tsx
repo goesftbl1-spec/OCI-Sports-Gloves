@@ -39,14 +39,14 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>(REVIEWS);
   const [selectedProduct, setSelectedProduct] = useState<Product>(SINGLE_PRODUCT);
 
-  // Exact inventory tracking: 4 Small left, others sold out
+  // Exact inventory tracking: 5 Small left, others sold out
   const [inventory, setInventory] = useState<Record<GloveSize, number>>(() => {
     try {
-      const saved = localStorage.getItem('oci_inventory_v2');
+      const saved = localStorage.getItem('oci_inventory_v3');
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      S: 4,
+      S: 5,
       M: 0,
       L: 0,
     } as Record<GloveSize, number>;
@@ -83,7 +83,7 @@ export default function App() {
   // Persist inventory state locally
   useEffect(() => {
     try {
-      localStorage.setItem('oci_inventory_v2', JSON.stringify(inventory));
+      localStorage.setItem('oci_inventory_v3', JSON.stringify(inventory));
     } catch (e) {
       console.warn('Could not save inventory to localStorage:', e);
     }
@@ -91,7 +91,7 @@ export default function App() {
 
   // Dynamically update product sizes with live inventory counts and inStock flags
   const activeProduct = React.useMemo(() => {
-    const sStock = inventory['S'] !== undefined ? inventory['S'] : 4;
+    const sStock = inventory['S'] !== undefined ? inventory['S'] : 5;
     const mStock = inventory['M'] !== undefined ? inventory['M'] : 0;
     const lStock = inventory['L'] !== undefined ? inventory['L'] : 0;
 

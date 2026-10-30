@@ -34,7 +34,7 @@ export const SINGLE_PRODUCT: Product = {
     'Reinforced negative stitching built to last through relentless match play'
   ],
   sizes: [
-    { size: 'S', inStock: true, stockCount: 4 },
+    { size: 'S', inStock: true, stockCount: 5 },
     { size: 'M', inStock: false, stockCount: 0 },
     { size: 'L', inStock: false, stockCount: 0 }
   ],

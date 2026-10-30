@@ -127,7 +127,7 @@ interface SizeInventory {
 
 const DEFAULT_INVENTORY: Record<string, SizeInventory> = {
   "oci-elite-2-gloves": {
-    S: 4,
+    S: 5,
     M: 0,
     L: 0,
   },
