@@ -7,10 +7,10 @@ export const HERO_IMAGE = '/ocigloves1.jpeg';
 
 export const SINGLE_PRODUCT: Product = {
   id: 'oci-elite-2-gloves',
-  name: 'ELITE 2.0 GLOVES',
+  name: 'ELITE 1.0 GLOVES',
   subtitle: 'All-Weather Gaelic Football Match Gloves',
-  badge: 'Limited Stock',
-  price: 14.99,
+  badge: 'SALE',
+  price: 12.99,
   originalPrice: 20.00,
   rating: 4.7,
   reviewCount: 3,
@@ -34,9 +34,9 @@ export const SINGLE_PRODUCT: Product = {
     'Reinforced negative stitching built to last through relentless match play'
   ],
   sizes: [
-    { size: 'S', inStock: true, stockCount: 5 },
-    { size: 'M', inStock: true, stockCount: 3 },
-    { size: 'L', inStock: true, stockCount: 4 }
+    { size: 'S', inStock: true, stockCount: 4 },
+    { size: 'M', inStock: false, stockCount: 0 },
+    { size: 'L', inStock: false, stockCount: 0 }
   ],
   colorway: 'Blackout Stealth',
   bestFor: 'Any Condition, All GAA Matches & Training'
@@ -51,7 +51,7 @@ export const REVIEWS: Review[] = [
     club: 'Louth GAA',
     county: 'Louth',
     position: 'Forward',
-    gloveModel: 'ELITE 2.0 GLOVES',
+    gloveModel: 'ELITE 1.0 GLOVES',
     rating: 5,
     date: 'Verified Buyer',
     title: 'Jesus they’re class',
@@ -67,7 +67,7 @@ export const REVIEWS: Review[] = [
     club: 'Galway GAA',
     county: 'Galway',
     position: 'Midfield',
-    gloveModel: 'ELITE 2.0 GLOVES',
+    gloveModel: 'ELITE 1.0 GLOVES',
     rating: 4,
     date: 'Verified Buyer',
     title: 'Comfortable and fit good',
@@ -83,7 +83,7 @@ export const REVIEWS: Review[] = [
     club: 'Kerry GAA',
     county: 'Kerry',
     position: 'Forward',
-    gloveModel: 'ELITE 2.0 GLOVES',
+    gloveModel: 'ELITE 1.0 GLOVES',
     rating: 5,
     date: 'Verified Buyer',
     title: 'Look class and feel class',
@@ -96,9 +96,9 @@ export const REVIEWS: Review[] = [
 ];
 
 export const SIZING_DATA = [
-  { size: 'S' as GloveSize, handLengthCm: '16.5 - 18.0', palmWidthCm: '7.5 - 8.2', ageGuide: 'Teens / Small Adult' },
-  { size: 'M' as GloveSize, handLengthCm: '18.1 - 19.5', palmWidthCm: '8.3 - 9.0', ageGuide: 'Standard Adult (Most Popular)' },
-  { size: 'L' as GloveSize, handLengthCm: '19.6 - 21.0', palmWidthCm: '9.1 - 10.0', ageGuide: 'Large Adult / Long Fingers' }
+  { size: 'S' as GloveSize, handLengthCm: '16.5 - 18.0', palmWidthCm: '7.5 - 8.2', ageGuide: 'Teens / Small Adult (In Stock)' },
+  { size: 'M' as GloveSize, handLengthCm: '18.1 - 19.5', palmWidthCm: '8.3 - 9.0', ageGuide: 'Standard Adult (Sold Out)' },
+  { size: 'L' as GloveSize, handLengthCm: '19.6 - 21.0', palmWidthCm: '9.1 - 10.0', ageGuide: 'Large Adult (Sold Out)' }
 ];
 
 export const FAQS = [
@@ -107,7 +107,7 @@ export const FAQS = [
     a: 'The all-weather contact palm is textured and naturally activates under moisture. When playing on wet Irish pitches, the surface prevents slipping against the leather of the Gaelic ball.'
   },
   {
-    q: 'What is the best way to clean and care for ELITE 2.0 gloves?',
+    q: 'What is the best way to clean and care for ELITE 1.0 gloves?',
     a: 'Rinse in lukewarm water after matches to remove muck. Squeeze gently without twisting and allow to air dry naturally away from direct radiators or heat sources.'
   },
   {
@@ -117,10 +117,10 @@ export const FAQS = [
 ];
 
 export const CHAT_KNOWLEDGE_BASE: Record<string, string> = {
-  wet: 'The ELITE 2.0 GLOVES feature an all-weather contact grip designed specifically for wet Irish conditions, muck, and rain. The wetter the ball gets, the more friction the contact surface generates.',
-  size: 'We offer sizes S, M, and L. If you prefer a snug second-skin match fit, choose your exact hand measurement size. Size M is our standard adult fit.',
+  wet: 'The ELITE 1.0 GLOVES feature an all-weather contact grip designed specifically for wet Irish conditions, muck, and rain. The wetter the ball gets, the more friction the contact surface generates.',
+  size: 'We offer sizes S, M, and L. Currently there are only 4 pairs of size S remaining, while size M and L are sold out!',
   delivery: 'Orders are shipped from Ireland via An Post Tracked & DPD 24h Express. Orders placed before 2 PM dispatch same-day.',
   care: 'Wash gently in lukewarm water after muck or wet pitch games. Never dry on hot radiators as this will dry out the grip.',
   contact: 'You can email our team directly at contactocisports@gmail.com anytime. We respond within a few hours!',
-  default: 'Dia duit! I am your OCI Sports Gaelic Gear Specialist. Ask me anything about sizing S/M/L, match delivery, or the ELITE 2.0 GLOVES!'
+  default: 'Dia duit! I am your OCI Sports Gaelic Gear Specialist. Ask me anything about sizing S/M/L, match delivery, or the ELITE 1.0 GLOVES!'
 };

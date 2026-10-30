@@ -46,8 +46,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const discountAmount = (subtotal * discountPercentage) / 100;
   const finalSubtotal = subtotal - discountAmount;
-  const shippingFee = items.length > 0 ? 3.99 : 0;
-  const totalWithShipping = finalSubtotal + shippingFee;
+  const isGiveaway = appliedPromo === 'G1VEAWAY013';
+  const shippingFee = items.length > 0 ? (isGiveaway && discountPercentage === 100 ? 0 : 3.99) : 0;
+  const totalWithShipping = Math.max(0, finalSubtotal + shippingFee);
 
   const handlePromoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,14 +59,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     const cleanCode = promoInput.trim().toUpperCase();
     const ok = onApplyPromo(cleanCode);
     if (ok) {
-      if (cleanCode === 'EDITOR15') {
+      if (cleanCode === 'G1VEAWAY013') {
+        setPromoSuccess('Secret Giveaway Unlocked! 100% OFF (One-Time Use)!');
+      } else if (cleanCode === 'EDITOR15') {
         setPromoSuccess('Secret code unlocked! 15% off active');
       } else {
         setPromoSuccess(`Applied! ${cleanCode} discount active`);
       }
       setPromoInput('');
     } else {
-      setPromoError('Invalid promo code. Enter a valid discount code or try OCI5');
+      if (cleanCode === 'G1VEAWAY013') {
+        setPromoError('Code G1VEAWAY013 was a ONE-TIME USE giveaway discount and has already been claimed.');
+      } else {
+        setPromoError('Invalid promo code. Enter a valid discount code or try OCI5');
+      }
     }
   };
 
@@ -231,7 +238,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="flex items-center gap-2 text-white">
                       <CheckCircle className="w-4 h-4 text-[#d4af37] shrink-0" />
                       <span className="font-bold text-[#d4af37]">
-                        {appliedPromo === 'EDITOR15'
+                        {appliedPromo === 'G1VEAWAY013'
+                          ? 'Secret Giveaway Unlocked (100% OFF • One-Time Use) 🎁'
+                          : appliedPromo === 'EDITOR15'
                           ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
                           : `${discountPercentage}% OFF active with code ${appliedPromo}`}
                       </span>

@@ -1,0 +1,9 @@
+{
+  "G1VEAWAY013": {
+    "discountPercentage": 100,
+    "oneTime": true,
+    "isUsed": false,
+    "usedAt": null,
+    "usedByOrderId": null
+  }
+}

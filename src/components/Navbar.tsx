@@ -2,7 +2,7 @@ import React from 'react';
 import { ShoppingBag } from 'lucide-react';
 import { Currency } from '../types';
 import { motion } from 'motion/react';
-import ociLogo from '../assets/images/oci_sports_logo_1789864489183.jpg';
+import ociLogo from '../assets/images/regenerated_image_1793365606411.png';
 
 interface NavbarProps {
   currentPage: 'home' | 'collection' | 'product';

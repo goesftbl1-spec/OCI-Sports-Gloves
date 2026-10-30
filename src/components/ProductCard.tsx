@@ -114,7 +114,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </p>
 
           {/* Pricing Row */}
-          <div className="flex items-baseline gap-2.5 mt-2.5">
+          <div className="flex items-baseline gap-2 mt-2.5">
             <span className="text-lg font-black text-white tracking-tight">
               {formatPrice(product.price, currency)}
             </span>
@@ -123,6 +123,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 {formatPrice(product.originalPrice, currency)}
               </span>
             )}
+            <span className="px-1.5 py-0.5 rounded bg-[#e5b338] text-black text-[9px] font-black uppercase tracking-wider">
+              SALE
+            </span>
             <span className="text-[10px] font-semibold text-emerald-400 uppercase ml-auto">
               In Stock
             </span>

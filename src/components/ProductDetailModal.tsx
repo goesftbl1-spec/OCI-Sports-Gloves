@@ -171,6 +171,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     {formatPrice(product.originalPrice, currency)}
                   </span>
                 )}
+                <span className="px-2 py-0.5 rounded bg-[#e5b338] text-black text-[10px] font-black uppercase tracking-wider">
+                  SALE
+                </span>
                 <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
                   In Stock • Dispatches in 24h
                 </span>

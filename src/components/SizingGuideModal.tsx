@@ -21,7 +21,7 @@ export const SizingGuideModal: React.FC<SizingGuideModalProps> = ({
 
   const currentLengthInCm = unit === 'in' ? handLength * 2.54 : handLength;
 
-  // S, M, L calculation for ELITE 2.0
+  // S, M, L calculation for ELITE 1.0
   const getRecommendedSize = (lengthCm: number): GloveSize => {
     if (lengthCm <= 18.0) return 'S';
     if (lengthCm <= 19.5) return 'M';
@@ -53,7 +53,7 @@ export const SizingGuideModal: React.FC<SizingGuideModalProps> = ({
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight font-['Outfit']">
-              ELITE 2.0 Sizing Guide
+              ELITE 1.0 Sizing Guide
             </h2>
             <p className="text-xs text-zinc-400">
               Measure from wrist crease to middle fingertip for your best GAA match fit.

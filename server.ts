@@ -25,15 +25,63 @@ interface CanonicalProduct {
 const CANONICAL_CATALOG: Record<string, CanonicalProduct> = {
   "oci-elite-2-gloves": {
     id: "oci-elite-2-gloves",
-    name: "ELITE 2.0 GLOVES",
-    price: 14.99,
+    name: "ELITE 1.0 GLOVES",
+    price: 12.99,
   },
 };
+
+interface PromoStore {
+  [code: string]: {
+    discountPercentage: number;
+    oneTime: boolean;
+    isUsed: boolean;
+    usedAt?: string | null;
+    usedByOrderId?: string | null;
+  };
+}
+
+const DEFAULT_PROMOS: PromoStore = {
+  G1VEAWAY013: {
+    discountPercentage: 100,
+    oneTime: true,
+    isUsed: false,
+    usedAt: null,
+    usedByOrderId: null,
+  },
+};
+
+function getPromos(): PromoStore {
+  const dataDir = path.resolve(process.cwd(), "data");
+  const promoPath = path.resolve(dataDir, "promos.json");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  if (!fs.existsSync(promoPath)) {
+    fs.writeFileSync(promoPath, JSON.stringify(DEFAULT_PROMOS, null, 2), "utf-8");
+    return JSON.parse(JSON.stringify(DEFAULT_PROMOS));
+  }
+  try {
+    const raw = fs.readFileSync(promoPath, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return JSON.parse(JSON.stringify(DEFAULT_PROMOS));
+  }
+}
+
+function savePromos(promos: PromoStore) {
+  const dataDir = path.resolve(process.cwd(), "data");
+  const promoPath = path.resolve(dataDir, "promos.json");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  fs.writeFileSync(promoPath, JSON.stringify(promos, null, 2), "utf-8");
+}
 
 const VALID_PROMOS: Record<string, number> = {
   OCI10: 10,     // 10% welcome discount
   EDITOR15: 15,  // 15% off Gaelic gloves
   OCI5: 5,       // 5% off discount
+  G1VEAWAY013: 100, // Secret 100% off one-time use giveaway discount
 };
 
 const PERSONALIZATION_FEE = 4.0;
@@ -68,7 +116,7 @@ function isBannedOrPlaceholder(text: string): boolean {
 }
 
 // ==============================================================
-// STRICT INVENTORY MANAGEMENT (5 Small, 3 Medium, 4 Large)
+// STRICT INVENTORY MANAGEMENT (4 Small, 0 Medium, 0 Large)
 // ==============================================================
 interface SizeInventory {
   S: number;
@@ -79,9 +127,9 @@ interface SizeInventory {
 
 const DEFAULT_INVENTORY: Record<string, SizeInventory> = {
   "oci-elite-2-gloves": {
-    S: 5,
-    M: 3,
-    L: 4,
+    S: 4,
+    M: 0,
+    L: 0,
   },
 };
 
@@ -145,7 +193,7 @@ function deductInventory(items: any[]) {
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
     if (!inv[productId]) {
-      inv[productId] = { S: 5, M: 3, L: 4 };
+      inv[productId] = { S: 4, M: 0, L: 0 };
     }
     const size = String(it.selectedSize || "M").trim();
     const qty = Number(it.quantity || 1);
@@ -208,17 +256,27 @@ function computeAuthoritativeTotals(
 
   // Authoritative promo validation
   let discountPercentage = 0;
+  let isOneTimeUsed = false;
   if (appliedPromo && typeof appliedPromo === "string") {
     const cleanPromo = appliedPromo.trim().toUpperCase();
-    if (VALID_PROMOS[cleanPromo]) {
+    if (cleanPromo === "G1VEAWAY013") {
+      const promos = getPromos();
+      const p = promos["G1VEAWAY013"];
+      if (p && !p.isUsed) {
+        discountPercentage = 100;
+      } else {
+        isOneTimeUsed = true;
+      }
+    } else if (VALID_PROMOS[cleanPromo]) {
       discountPercentage = VALID_PROMOS[cleanPromo];
     }
   }
 
   const discountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
   const shippingInfo = SHIPPING_RATES[shippingMethod] || SHIPPING_RATES["standard"];
-  const shippingCost = shippingInfo.cost;
-  const grandTotal = Number((subtotal - discountAmount + shippingCost).toFixed(2));
+  const isGiveaway = appliedPromo && appliedPromo.trim().toUpperCase() === "G1VEAWAY013" && discountPercentage === 100;
+  const shippingCost = isGiveaway ? 0 : shippingInfo.cost;
+  const grandTotal = isGiveaway ? 0 : Math.max(0, Number((subtotal - discountAmount + shippingCost).toFixed(2)));
 
   return {
     verifiedItems,
@@ -1099,14 +1157,31 @@ app.post("/api/orders", (req, res) => {
       return res.status(400).json({ error: "Invalid order data" });
     }
 
-    // Allow genuine orders from checkout with PayPal ID or authenticated requests
+    // Allow genuine orders from checkout with PayPal ID, verified giveaway promo, or authenticated requests
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : (req.headers["x-admin-token"] as string);
     const hasValidToken = token && adminSessions.get(token);
     const isGenuinePayPalOrder = Boolean(order.paypalOrderId || order.paypalTransactionId);
+    const isVerifiedGiveaway = order.appliedPromo === "G1VEAWAY013";
 
-    if (!hasValidToken && !isGenuinePayPalOrder) {
+    if (!hasValidToken && !isGenuinePayPalOrder && !isVerifiedGiveaway) {
       return res.status(401).json({ error: "UNAUTHORIZED", message: "Cannot save order without authentication or payment confirmation." });
+    }
+
+    // If giveaway order, ensure code is not already consumed
+    if (isVerifiedGiveaway) {
+      const promos = getPromos();
+      const p = promos["G1VEAWAY013"];
+      if (p && p.isUsed && p.usedByOrderId !== order.orderId) {
+        return res.status(400).json({ error: "PROMO_ALREADY_USED", message: "Secret code G1VEAWAY013 has already been redeemed!" });
+      }
+      // Consume promo
+      if (promos["G1VEAWAY013"]) {
+        promos["G1VEAWAY013"].isUsed = true;
+        promos["G1VEAWAY013"].usedAt = new Date().toISOString();
+        promos["G1VEAWAY013"].usedByOrderId = order.orderId;
+        savePromos(promos);
+      }
     }
 
     const dataDir = path.resolve(process.cwd(), "data");
@@ -1138,6 +1213,72 @@ app.post("/api/orders", (req, res) => {
   } catch {
     res.status(400).json({ error: "Invalid order data" });
   }
+});
+
+// Promo management endpoints
+app.get("/api/promos/check/:code", (req, res) => {
+  const code = String(req.params.code || "").trim().toUpperCase();
+  if (code === "G1VEAWAY013") {
+    const promos = getPromos();
+    const p = promos["G1VEAWAY013"] || DEFAULT_PROMOS["G1VEAWAY013"];
+    return res.json({
+      valid: !p.isUsed,
+      code: "G1VEAWAY013",
+      discountPercentage: 100,
+      oneTime: true,
+      isUsed: Boolean(p.isUsed),
+      usedAt: p.usedAt || null,
+      message: p.isUsed
+        ? "This secret giveaway code has already been claimed! It was valid for ONE TIME USE only."
+        : "Secret Giveaway Unlocked! 100% OFF (One-Time Use)",
+    });
+  }
+  if (VALID_PROMOS[code]) {
+    return res.json({
+      valid: true,
+      code,
+      discountPercentage: VALID_PROMOS[code],
+      oneTime: false,
+      isUsed: false,
+      message: `${code} applied!`,
+    });
+  }
+  return res.status(404).json({ valid: false, error: "Invalid promo code" });
+});
+
+app.post("/api/promos/redeem", (req, res) => {
+  const { code, orderId } = req.body || {};
+  const clean = String(code || "").trim().toUpperCase();
+  if (clean === "G1VEAWAY013") {
+    const promos = getPromos();
+    if (promos["G1VEAWAY013"]) {
+      if (promos["G1VEAWAY013"].isUsed && promos["G1VEAWAY013"].usedByOrderId !== orderId) {
+        return res.status(400).json({ error: "ALREADY_REDEEMED", message: "G1VEAWAY013 has already been used." });
+      }
+      promos["G1VEAWAY013"].isUsed = true;
+      promos["G1VEAWAY013"].usedAt = new Date().toISOString();
+      promos["G1VEAWAY013"].usedByOrderId = orderId || "CLAIMED";
+      savePromos(promos);
+      return res.json({ success: true, code: "G1VEAWAY013", isUsed: true });
+    }
+  }
+  res.json({ success: false });
+});
+
+app.post("/api/promos/reset", checkAdminAuth, (req, res) => {
+  const { code } = req.body || {};
+  const clean = String(code || "").trim().toUpperCase();
+  if (clean === "G1VEAWAY013") {
+    const promos = getPromos();
+    if (promos["G1VEAWAY013"]) {
+      promos["G1VEAWAY013"].isUsed = false;
+      promos["G1VEAWAY013"].usedAt = null;
+      promos["G1VEAWAY013"].usedByOrderId = null;
+      savePromos(promos);
+      return res.json({ success: true, message: "G1VEAWAY013 reset to active!" });
+    }
+  }
+  res.json({ success: false });
 });
 
 app.delete("/api/orders", checkAdminAuth, (req, res) => {
@@ -1233,7 +1374,7 @@ app.post("/api/customer/order-status", (req, res) => {
         county: match.shippingDetails?.county || "Ireland",
         itemsCount: match.items?.length || 1,
         items: (match.items || []).map((it: any) => ({
-          name: it.product?.name || "ELITE 2.0 GLOVES",
+          name: it.product?.name || "ELITE 1.0 GLOVES",
           size: it.selectedSize || "Standard",
           quantity: it.quantity || 1,
           personalization: it.personalization?.enabled ? it.personalization.text : null,
@@ -1274,7 +1415,7 @@ STORE KNOWLEDGE BASE (GROUND TRUTH - NEVER CONTRADICT OR INVENT OUTSIDE OF THIS)
 - Location: Dispatched directly from Ireland across all 32 counties.
 
 2. PRODUCT CATALOG:
-- Product: "ELITE 2.0 GLOVES"
+- Product: "ELITE 1.0 GLOVES"
 - Current Sale Price: €14.99 (Reduced from regular €20.00).
 - Optional Custom Personalization: Custom Name & Number printing on wrist strap for +€4.00.
 - Available Sizes:
@@ -1360,7 +1501,7 @@ function generateSmartLocalResponse(
 
           if (userContact && (ordEmail.includes(userContact) || ordPhone.includes(userContact) || userContact.includes(ordPhone))) {
             const itemsDesc = (found.items || [])
-              .map((i: any) => `${i.quantity}x ${i.product?.name || "ELITE 2.0"} (Size ${i.selectedSize})`)
+              .map((i: any) => `${i.quantity}x ${i.product?.name || "ELITE 1.0"} (Size ${i.selectedSize})`)
               .join(", ");
             return `I found your order **${found.orderId}**! It was placed on ${found.createdAt} for **${itemsDesc}** via ${found.deliveryMethod || "An Post Tracked"}.\n\nYour order is confirmed and prepared for dispatch. Tracking notifications are sent directly to ${found.shippingDetails.email}.`;
           } else {
@@ -1391,7 +1532,7 @@ function generateSmartLocalResponse(
     q.includes("pricing") ||
     q.includes("how much are the gloves")
   ) {
-    return "Our **ELITE 2.0 GLOVES** are currently on matchday sale for **€14.99** (regular retail €20.00)!\n\nIf you would like custom player personalization (name or number laser-printed on the wrist strap), that is available for an additional €4.00.";
+    return "Our **ELITE 1.0 GLOVES** are currently on matchday sale for **€14.99** (regular retail €20.00)!\n\nIf you would like custom player personalization (name or number laser-printed on the wrist strap), that is available for an additional €4.00.";
   }
 
   // 4. Galway / County / Location Shipping
@@ -1423,7 +1564,7 @@ function generateSmartLocalResponse(
     q.includes("medium") ||
     q.includes("large")
   ) {
-    return "We offer three match-calibrated sizes for the **ELITE 2.0 GLOVES**:\n\n• **Size S**: Hand length 16.5 – 18.0 cm (ideal for teens and small adult hands)\n• **Size M**: Hand length 18.1 – 19.5 cm (standard adult fit — our most popular size)\n• **Size L**: Hand length 19.6 – 21.0 cm (large adult / longer fingers)\n\nYou can also click the **Hand Sizing Guide** button in our store for our interactive hand measurement calculator!";
+    return "We offer three match-calibrated sizes for the **ELITE 1.0 GLOVES**:\n\n• **Size S**: Hand length 16.5 – 18.0 cm (ideal for teens and small adult hands)\n• **Size M**: Hand length 18.1 – 19.5 cm (standard adult fit — currently sold out)\n• **Size L**: Hand length 19.6 – 21.0 cm (large adult / longer fingers — currently sold out)\n\nYou can also click the **Hand Sizing Guide** button in our store for our interactive hand measurement calculator!";
   }
 
   // 6. How to order
@@ -1486,7 +1627,7 @@ function generateSmartLocalResponse(
     q.includes("muck") ||
     q.includes("grip")
   ) {
-    return "The **ELITE 2.0 GLOVES** are specifically engineered for wet Irish weather and muddy pitches! The **3mm German Contact Latex Palm** is moisture-activated — meaning rain and surface dampness actually increase friction and grip against leather O'Neills match balls.\n\nThe breathable thermal-flex neoprene body keeps your hands nimble and comfortable in rain, snow, or heat.";
+    return "The **ELITE 1.0 GLOVES** are specifically engineered for wet Irish weather and muddy pitches! The **3mm German Contact Latex Palm** is moisture-activated — meaning rain and surface dampness actually increase friction and grip against leather O'Neills match balls.\n\nThe breathable thermal-flex neoprene body keeps your hands nimble and comfortable in rain, snow, or heat.";
   }
 
   // 11. Discounts / Promo codes

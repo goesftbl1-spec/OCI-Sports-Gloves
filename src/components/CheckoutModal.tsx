@@ -17,7 +17,8 @@ import {
   CreditCard,
   AlertTriangle,
   Tag,
-  Percent
+  Percent,
+  Gift
 } from 'lucide-react';
 import { CartItem, Currency, ShippingDetails, Order } from '../types';
 import { formatPrice } from '../utils/formatters';
@@ -77,6 +78,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [checkoutPromoError, setCheckoutPromoError] = useState<string | null>(null);
   const [checkoutPromoSuccess, setCheckoutPromoSuccess] = useState<string | null>(null);
+  const [giveawayError, setGiveawayError] = useState<string | null>(null);
 
   // PayPal Configuration state with live production client ID pre-configured
   const [paypalConfig, setPaypalConfig] = useState<PayPalConfigState>({
@@ -156,11 +158,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       .toFixed(2)
   );
 
+  const isGiveaway = appliedPromo === 'G1VEAWAY013';
   const discountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
-  const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
+  const discountedSubtotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
 
-  const shippingCost = 3.99;
-  const grandTotal = Number((discountedSubtotal + shippingCost).toFixed(2));
+  const shippingCost = isGiveaway && discountPercentage === 100 ? 0 : 3.99;
+  const grandTotal = isGiveaway && discountPercentage === 100 ? 0 : Math.max(0, Number((discountedSubtotal + shippingCost).toFixed(2)));
 
   // Handle Shipping Submit with Address Validation
   const handleShippingSubmit = async (e: React.FormEvent) => {
@@ -245,6 +248,81 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handlePaymentCancel = () => {
     setPaymentCancelled(true);
     setPaymentError(null);
+  };
+
+  const handleClaimGiveaway = async () => {
+    setIsProcessing(true);
+    setGiveawayError(null);
+
+    try {
+      // 1. Verify code is still unredeemed on server
+      const checkRes = await fetch('/api/promos/check/G1VEAWAY013');
+      const checkData = await checkRes.json();
+      if (checkData.isUsed) {
+        setGiveawayError('This secret giveaway code has already been claimed! It was valid for ONE-TIME USE only.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // 2. Build verified Giveaway Order
+      const orderId = `OCI-GIVEAWAY-${Date.now().toString(36).toUpperCase()}`;
+      const giveawayOrder: Order = {
+        orderId,
+        paypalOrderId: `GIVEAWAY-${Date.now()}`,
+        paypalTransactionId: `GIVEAWAY-FREE-100`,
+        createdAt: new Date().toISOString(),
+        date: new Date().toISOString(),
+        status: 'processing',
+        customerEmail: shippingDetails.email,
+        customerName: shippingDetails.fullName,
+        shippingDetails,
+        deliveryMethod: 'Tracked Express Delivery (Giveaway)',
+        items,
+        currency,
+        subtotal,
+        discountPercentage: 100,
+        discountAmount: subtotal,
+        shippingCost: 0,
+        total: 0,
+        paymentMethod: 'giveaway',
+        appliedPromo: 'G1VEAWAY013',
+        verifiedAt: new Date().toISOString(),
+      };
+
+      // 3. Save order to server
+      const saveRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(giveawayOrder),
+      });
+
+      if (!saveRes.ok) {
+        const errData = await saveRes.json().catch(() => ({}));
+        if (errData.error === 'PROMO_ALREADY_USED') {
+          setGiveawayError('This secret giveaway code has already been claimed! One-time use only.');
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // 4. Record redemption
+      await fetch('/api/promos/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: 'G1VEAWAY013', orderId }),
+      }).catch(() => {});
+      try {
+        localStorage.setItem('oci_promo_G1VEAWAY013_used', 'true');
+      } catch {}
+
+      // 5. Complete order
+      handlePaymentSuccess(giveawayOrder);
+    } catch (e: any) {
+      console.error('Failed to claim giveaway:', e);
+      setGiveawayError(e.message || 'Failed to claim giveaway. Please check connection.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCopy = (text: string, id: string) => {
@@ -696,7 +774,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <div className="flex items-center gap-2 text-white">
                     <CheckCircle className="w-4 h-4 text-[#d4af37] shrink-0" />
                     <span className="font-bold text-[#d4af37]">
-                      {appliedPromo === 'EDITOR15'
+                      {appliedPromo === 'G1VEAWAY013'
+                        ? 'Secret Giveaway Unlocked (100% OFF • One-Time Use) 🎁'
+                        : appliedPromo === 'EDITOR15'
                         ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
                         : `${discountPercentage}% Discount Active with code ${appliedPromo}`}
                     </span>
@@ -726,14 +806,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         const code = promoCodeInput.trim().toUpperCase();
                         const ok = onApplyPromo(code);
                         if (ok) {
-                          if (code === 'EDITOR15') {
+                          if (code === 'G1VEAWAY013') {
+                            setCheckoutPromoSuccess('Secret Giveaway Unlocked! 100% OFF (One-Time Use)!');
+                          } else if (code === 'EDITOR15') {
                             setCheckoutPromoSuccess('Secret code unlocked! 15% discount applied!');
                           } else {
                             setCheckoutPromoSuccess(`Applied ${code}!`);
                           }
                           setPromoCodeInput('');
                         } else {
-                          setCheckoutPromoError('Invalid code. Enter a valid discount code or try OCI5');
+                          if (code === 'G1VEAWAY013') {
+                            setCheckoutPromoError('Code G1VEAWAY013 was a ONE-TIME USE giveaway discount and has already been claimed.');
+                          } else {
+                            setCheckoutPromoError('Invalid code. Enter a valid discount code or try OCI5');
+                          }
                         }
                       }
                     }}
@@ -809,39 +895,88 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             )}
 
-            {/* Official PayPal & Debit/Credit Card Checkout */}
-            <div className="space-y-3">
-              <PayPalButton
-                clientId={paypalConfig.clientId || LIVE_PAYPAL_CLIENT_ID}
-                currency={currency}
-                items={items}
-                shippingDetails={shippingDetails}
-                shippingMethod={shippingMethod}
-                discountPercentage={discountPercentage}
-                appliedPromo={appliedPromo}
-                onSuccess={handlePaymentSuccess}
-                onError={handlePaymentError}
-                onCancel={handlePaymentCancel}
-                isProcessing={isProcessing}
-                setIsProcessing={setIsProcessing}
-              />
-
-              <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
-                <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />
-                  <span>Official Secure Infrastructure:</span>
+            {/* Either 100% Free Giveaway Claim OR Official PayPal / Card Checkout */}
+            {grandTotal === 0 || (isGiveaway && discountPercentage === 100) ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-gradient-to-b from-[#e5b338]/15 via-[#e5b338]/10 to-[#e5b338]/5 border border-[#e5b338]/40 text-center space-y-2.5">
+                  <div className="w-12 h-12 rounded-full bg-[#e5b338]/20 border border-[#e5b338] flex items-center justify-center text-[#e5b338] mx-auto shadow-lg shadow-[#e5b338]/20">
+                    <Gift className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase text-white font-['Outfit']">
+                      100% Free Matchday Giveaway
+                    </h4>
+                    <p className="text-xs text-zinc-300 mt-1">
+                      Secret discount code <strong className="text-[#e5b338] font-mono">G1VEAWAY013</strong> applied. Total due is <span className="text-emerald-400 font-bold">€0.00</span> with free express delivery included!
+                    </p>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/60 border border-[#e5b338]/30 text-[10px] font-bold text-[#e5b338] uppercase tracking-wider">
+                    <span>⚡ One-Time Use Code • No Payment Required</span>
+                  </div>
                 </div>
-                <p className="leading-relaxed">
-                  • Card &amp; PayPal transactions are processed directly through PayPal's secure 256-bit encrypted gateway.
-                </p>
-                <p className="leading-relaxed">
-                  • No card numbers, CVVs, or PayPal passwords are ever handled by or stored on our website.
-                </p>
-                <p className="leading-relaxed">
-                  • Funds from successful purchases are deposited directly into your connected PayPal Business account.
-                </p>
+
+                {giveawayError && (
+                  <div className="p-3 rounded-lg bg-red-950/60 border border-red-800 text-xs text-red-200">
+                    {giveawayError}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  id="claim-giveaway-btn"
+                  disabled={isProcessing}
+                  onClick={handleClaimGiveaway}
+                  className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f5df88] to-[#d4af37] text-black font-black text-xs sm:text-sm uppercase tracking-widest flex items-center justify-center gap-2.5 hover:brightness-110 active:scale-98 transition-all cursor-pointer shadow-lg shadow-[#d4af37]/20 disabled:opacity-50"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      <span>Securing Your Giveaway Pair...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="w-4 h-4" />
+                      <span>CLAIM FREE GIVEAWAY (100% OFF)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
               </div>
-            </div>
+            ) : (
+              /* Official PayPal & Debit/Credit Card Checkout */
+              <div className="space-y-3">
+                <PayPalButton
+                  clientId={paypalConfig.clientId || LIVE_PAYPAL_CLIENT_ID}
+                  currency={currency}
+                  items={items}
+                  shippingDetails={shippingDetails}
+                  shippingMethod={shippingMethod}
+                  discountPercentage={discountPercentage}
+                  appliedPromo={appliedPromo}
+                  onSuccess={handlePaymentSuccess}
+                  onError={handlePaymentError}
+                  onCancel={handlePaymentCancel}
+                  isProcessing={isProcessing}
+                  setIsProcessing={setIsProcessing}
+                />
+
+                <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
+                  <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />
+                    <span>Official Secure Infrastructure:</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    • Card &amp; PayPal transactions are processed directly through PayPal's secure 256-bit encrypted gateway.
+                  </p>
+                  <p className="leading-relaxed">
+                    • No card numbers, CVVs, or PayPal passwords are ever handled by or stored on our website.
+                  </p>
+                  <p className="leading-relaxed">
+                    • Funds from successful purchases are deposited directly into your connected PayPal Business account.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Back Button */}
             <div className="pt-2 flex justify-start">

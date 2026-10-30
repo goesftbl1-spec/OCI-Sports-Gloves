@@ -45,12 +45,12 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   onApplyPromo,
   onRemovePromo
 }) => {
-  // Authoritative stock calculation: 5 Small, 3 Medium, 4 Large
+  // Authoritative stock calculation: 4 Small, others sold out
   const sizeStockMap = useMemo(() => {
     const map: Record<GloveSize, { inStock: boolean; count: number }> = {
-      S: { inStock: true, count: 5 },
-      M: { inStock: true, count: 3 },
-      L: { inStock: true, count: 4 },
+      S: { inStock: true, count: 4 },
+      M: { inStock: false, count: 0 },
+      L: { inStock: false, count: 0 },
       'Youth M': { inStock: false, count: 0 },
       'Youth L': { inStock: false, count: 0 },
       'Adult S': { inStock: false, count: 0 },
@@ -73,15 +73,15 @@ export const ProductPage: React.FC<ProductPageProps> = ({
     return map;
   }, [product?.sizes]);
 
-  // Initial size selection: default to M if in stock, otherwise first available in-stock size
+  // Initial size selection: default to S if in stock, otherwise first available in-stock size
   const [selectedSize, setSelectedSize] = useState<GloveSize>(() => {
     if (product?.sizes && Array.isArray(product.sizes)) {
-      const mSize = product.sizes.find((s) => s.size === 'M');
-      if (mSize && mSize.stockCount > 0) return 'M';
+      const sSize = product.sizes.find((s) => s.size === 'S');
+      if (sSize && sSize.stockCount > 0) return 'S';
       const available = product.sizes.find((s) => s.stockCount > 0);
       if (available) return available.size;
     }
-    return 'M';
+    return 'S';
   });
 
   const currentSizeStock = sizeStockMap[selectedSize]?.count ?? 0;
@@ -90,7 +90,12 @@ export const ProductPage: React.FC<ProductPageProps> = ({
     (sz) => (sizeStockMap[sz]?.count ?? 0) <= 0
   );
 
-
+  // When product loads, ensure in-stock size (S) is selected by default
+  useEffect(() => {
+    if (sizeStockMap['S']?.count > 0 && (sizeStockMap[selectedSize]?.count ?? 0) <= 0) {
+      setSelectedSize('S');
+    }
+  }, [sizeStockMap]);
 
   const [quantity, setQuantity] = useState(1);
 
@@ -162,12 +167,12 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   };
 
   // Live discount calculations
-  const basePrice = product.price || 14.99;
+  const basePrice = product.price || 12.99;
   const isDiscounted = discountPercentage > 0;
   const discountedUnitPrice = isDiscounted
     ? Number((basePrice * (1 - discountPercentage / 100)).toFixed(2))
     : basePrice;
-  const originalComparePrice = 20.00;
+  const originalComparePrice = product.originalPrice || 20.00;
 
   // Touch and drag swipe state
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -262,7 +267,10 @@ export const ProductPage: React.FC<ProductPageProps> = ({
           </button>
 
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            <span className="px-2 py-0.5 rounded bg-[#e5b338] text-black text-[10px] font-black uppercase tracking-wider shadow-sm">
+              SALE
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />
             <span className="text-[11px] font-bold uppercase tracking-wider text-red-400">
               Limited Stock
             </span>
@@ -412,9 +420,14 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                     </span>
                   </>
                 ) : (
-                  <span className="text-base text-zinc-500 line-through font-normal">
-                    {formatPrice(originalComparePrice * quantity, currency)}
-                  </span>
+                  <>
+                    <span className="text-base text-zinc-500 line-through font-normal">
+                      {formatPrice(originalComparePrice * quantity, currency)}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-[#e5b338] text-black text-xs font-black uppercase tracking-wider shadow-sm">
+                      SALE • SAVE 35%
+                    </span>
+                  </>
                 )}
               </div>
             </motion.div>
@@ -565,7 +578,11 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                       <CheckCircle className="w-4 h-4 text-[#e5b338] shrink-0" />
                       <div>
                         <div className="font-extrabold text-[#e5b338]">
-                          {appliedPromo === 'EDITOR15' ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉' : `Code ${appliedPromo} (${discountPercentage}% OFF)`}
+                          {appliedPromo === 'G1VEAWAY013'
+                            ? 'Secret Giveaway Unlocked (100% OFF • One-Time Use) 🎁'
+                            : appliedPromo === 'EDITOR15'
+                            ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
+                            : `Code ${appliedPromo} (${discountPercentage}% OFF)`}
                         </div>
                         <div className="text-[11px] text-zinc-400">
                           Saving {formatPrice((basePrice * (discountPercentage / 100)) * quantity, currency)} on your gloves
@@ -597,14 +614,20 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                           const code = discountInput.trim().toUpperCase();
                           const ok = onApplyPromo(code);
                           if (ok) {
-                            if (code === 'EDITOR15') {
+                            if (code === 'G1VEAWAY013') {
+                              setDiscountSuccess('Secret Giveaway Unlocked! 100% OFF (One-Time Use)!');
+                            } else if (code === 'EDITOR15') {
                               setDiscountSuccess('Secret code unlocked! 15% off applied!');
                             } else {
                               setDiscountSuccess(`Applied! ${code} discount active`);
                             }
                             setDiscountInput('');
                           } else {
-                            setDiscountError('Invalid code. Enter a valid discount code or try OCI5');
+                            if (code === 'G1VEAWAY013') {
+                              setDiscountError('Code G1VEAWAY013 was a ONE-TIME USE giveaway and has already been claimed.');
+                            } else {
+                              setDiscountError('Invalid code. Enter a valid discount code or try OCI5');
+                            }
                           }
                         }
                       }}

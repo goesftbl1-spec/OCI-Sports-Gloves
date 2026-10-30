@@ -39,16 +39,16 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>(REVIEWS);
   const [selectedProduct, setSelectedProduct] = useState<Product>(SINGLE_PRODUCT);
 
-  // Exact inventory tracking: 5 Small, 3 Medium, 4 Large
+  // Exact inventory tracking: 4 Small left, others sold out
   const [inventory, setInventory] = useState<Record<GloveSize, number>>(() => {
     try {
-      const saved = localStorage.getItem('oci_inventory_v1');
+      const saved = localStorage.getItem('oci_inventory_v2');
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      S: 5,
-      M: 3,
-      L: 4,
+      S: 4,
+      M: 0,
+      L: 0,
     } as Record<GloveSize, number>;
   });
 
@@ -83,7 +83,7 @@ export default function App() {
   // Persist inventory state locally
   useEffect(() => {
     try {
-      localStorage.setItem('oci_inventory_v1', JSON.stringify(inventory));
+      localStorage.setItem('oci_inventory_v2', JSON.stringify(inventory));
     } catch (e) {
       console.warn('Could not save inventory to localStorage:', e);
     }
@@ -91,12 +91,13 @@ export default function App() {
 
   // Dynamically update product sizes with live inventory counts and inStock flags
   const activeProduct = React.useMemo(() => {
-    const sStock = inventory['S'] !== undefined ? inventory['S'] : 5;
-    const mStock = inventory['M'] !== undefined ? inventory['M'] : 3;
-    const lStock = inventory['L'] !== undefined ? inventory['L'] : 4;
+    const sStock = inventory['S'] !== undefined ? inventory['S'] : 4;
+    const mStock = inventory['M'] !== undefined ? inventory['M'] : 0;
+    const lStock = inventory['L'] !== undefined ? inventory['L'] : 0;
 
     return {
       ...selectedProduct,
+      name: 'ELITE 1.0 GLOVES',
       sizes: [
         { size: 'S' as GloveSize, inStock: sStock > 0, stockCount: sStock },
         { size: 'M' as GloveSize, inStock: mStock > 0, stockCount: mStock },
@@ -123,6 +124,29 @@ export default function App() {
     const path = window.location.pathname.toLowerCase();
     return path === '/order-details' || path === '/order-details/';
   });
+
+  // Secret Giveaway Promo status (One-Time Use)
+  const [isGiveawayUsed, setIsGiveawayUsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('oci_promo_G1VEAWAY013_used') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    fetch('/api/promos/check/G1VEAWAY013')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.isUsed) {
+          setIsGiveawayUsed(true);
+          try {
+            localStorage.setItem('oci_promo_G1VEAWAY013_used', 'true');
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -268,6 +292,17 @@ export default function App() {
 
   const handleApplyPromo = (code: string): boolean => {
     const clean = code.trim().toUpperCase();
+    if (clean === 'G1VEAWAY013') {
+      const isAlreadyUsed = isGiveawayUsed || localStorage.getItem('oci_promo_G1VEAWAY013_used') === 'true';
+      if (isAlreadyUsed) {
+        addToast('Promo Code Already Claimed', 'Code G1VEAWAY013 was a ONE-TIME USE discount and has already been redeemed.');
+        return false;
+      }
+      setAppliedPromo('G1VEAWAY013');
+      setDiscountPercentage(100);
+      addToast('Secret Giveaway Unlocked! 🎁', 'G1VEAWAY013 applied: 100% OFF (One-Time Use)!');
+      return true;
+    }
     if (clean === 'EDITOR15') {
       setAppliedPromo('EDITOR15');
       setDiscountPercentage(15);
@@ -308,6 +343,19 @@ export default function App() {
 
   const handleOrderCompleted = (order: Order) => {
     setRecentOrders((prev) => [order, ...prev]);
+
+    // If giveaway promo was used, mark it permanently consumed
+    if (order.appliedPromo === 'G1VEAWAY013' || appliedPromo === 'G1VEAWAY013') {
+      setIsGiveawayUsed(true);
+      try {
+        localStorage.setItem('oci_promo_G1VEAWAY013_used', 'true');
+      } catch {}
+      fetch('/api/promos/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: 'G1VEAWAY013', orderId: order.orderId }),
+      }).catch(() => {});
+    }
 
     // Strictly deduct purchased sizes from active inventory
     if (Array.isArray(order.items)) {

@@ -102,10 +102,16 @@ export interface Order {
   notes?: string;
   updatedAt?: string;
   payerEmail?: string;
+  customerEmail?: string;
+  customerName?: string;
   createdAt: string;
+  date?: string;
   items: CartItem[];
   shippingCost: number;
   discountAmount: number;
+  discountPercentage?: number;
+  appliedPromo?: string;
+  verifiedAt?: string;
   subtotal: number;
   total: number;
   currency: Currency;

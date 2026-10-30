@@ -1115,7 +1115,7 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
 
                     <div className="rounded-2xl bg-zinc-950 border border-zinc-850 p-3.5 space-y-2.5">
                       {(ord.items || []).map((item, idx) => {
-                        const unitPrice = item.product?.price || 14.99;
+                        const unitPrice = item.product?.price || 12.99;
                         const personalizationCost = item.personalization?.enabled ? 4.0 : 0;
                         const itemTotal = (unitPrice + personalizationCost) * item.quantity;
 
@@ -1126,7 +1126,7 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
                           >
                             <div className="space-y-0.5">
                               <div className="font-bold text-white text-sm flex items-center gap-2">
-                                <span>{item.product?.name || 'ELITE 2.0 GLOVES'}</span>
+                                <span>{item.product?.name || 'ELITE 1.0 GLOVES'}</span>
                                 <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-[#d4af37]">
                                   Size {item.selectedSize || 'Standard'}
                                 </span>
@@ -1173,7 +1173,9 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
                         </div>
                         {ord.discountAmount > 0 && (
                           <div>
-                            <span className="text-zinc-500 block">Discount</span>
+                            <span className="text-zinc-500 block">
+                              Discount {ord.appliedPromo ? `(${ord.appliedPromo})` : ''}
+                            </span>
                             <span className="font-mono text-[#d4af37]">
                               -{formatPrice(ord.discountAmount, ord.currency || 'EUR')}
                             </span>
