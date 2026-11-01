@@ -260,13 +260,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     try {
       // 1. Verify code is still unredeemed on server
-      const checkRes = await fetch('/api/promos/check/G1VEAWAY013');
-      const checkData = await checkRes.json();
-      if (checkData.isUsed) {
-        setGiveawayError('This secret giveaway code has already been claimed! It was valid for ONE-TIME USE only.');
-        setIsProcessing(false);
-        return;
+      try {
+        const checkRes = await fetch('/api/promos/check/G1VEAWAY013');
+        const cType = checkRes.headers.get('content-type') || '';
+        if (checkRes.ok && cType.includes('application/json')) {
+          const checkData = await checkRes.json();
+          if (checkData && checkData.isUsed) {
+            setGiveawayError('This secret giveaway code has already been claimed! It was valid for ONE-TIME USE only.');
+            setIsProcessing(false);
+            return;
+          }
+        }
+      } catch (checkErr) {
+        console.warn('Server promo check check bypassed:', checkErr);
       }
+
+      // Check local redemption record
+      try {
+        if (localStorage.getItem('oci_promo_G1VEAWAY013_used') === 'true') {
+          setGiveawayError('This secret giveaway code has already been claimed! It was valid for ONE-TIME USE only.');
+          setIsProcessing(false);
+          return;
+        }
+      } catch {}
 
       // 2. Build verified Giveaway Order
       const orderId = `OCI-GIVEAWAY-${Date.now().toString(36).toUpperCase()}`;
@@ -293,28 +309,38 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         verifiedAt: new Date().toISOString(),
       };
 
-      // 3. Save order to server
-      const saveRes = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(giveawayOrder),
-      });
+      // 3. Save order to server safely (guard against non-JSON error pages)
+      try {
+        const saveRes = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(giveawayOrder),
+        });
 
-      if (!saveRes.ok) {
-        const errData = await saveRes.json().catch(() => ({}));
-        if (errData.error === 'PROMO_ALREADY_USED') {
-          setGiveawayError('This secret giveaway code has already been claimed! One-time use only.');
-          setIsProcessing(false);
-          return;
+        if (!saveRes.ok) {
+          const cType = saveRes.headers.get('content-type') || '';
+          if (cType.includes('application/json')) {
+            const errData = await saveRes.json();
+            if (errData && errData.error === 'PROMO_ALREADY_USED') {
+              setGiveawayError('This secret giveaway code has already been claimed! One-time use only.');
+              setIsProcessing(false);
+              return;
+            }
+          }
         }
+      } catch (saveErr) {
+        console.warn('Order save notice:', saveErr);
       }
 
       // 4. Record redemption
-      await fetch('/api/promos/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: 'G1VEAWAY013', orderId }),
-      }).catch(() => {});
+      try {
+        fetch('/api/promos/redeem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: 'G1VEAWAY013', orderId }),
+        }).catch(() => {});
+      } catch {}
+
       try {
         localStorage.setItem('oci_promo_G1VEAWAY013_used', 'true');
       } catch {}
@@ -323,7 +349,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       handlePaymentSuccess(giveawayOrder);
     } catch (e: any) {
       console.error('Failed to claim giveaway:', e);
-      setGiveawayError(e.message || 'Failed to claim giveaway. Please check connection.');
+      const msg = String(e?.message || '');
+      if (msg.includes('pattern') || msg.includes('JSON')) {
+        setGiveawayError('Unable to verify giveaway code with server. Please check your connection and try again.');
+      } else {
+        setGiveawayError(msg || 'Failed to claim giveaway. Please check connection.');
+      }
     } finally {
       setIsProcessing(false);
     }
