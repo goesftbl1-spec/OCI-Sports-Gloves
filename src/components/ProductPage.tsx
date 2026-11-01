@@ -168,8 +168,11 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 
   // Live discount calculations
   const basePrice = product.price || 12.99;
-  const isDiscounted = discountPercentage > 0;
-  const discountedUnitPrice = isDiscounted
+  const isSpecialPromo = appliedPromo === 'C0D3SPEC1AL15';
+  const isDiscounted = discountPercentage > 0 || isSpecialPromo;
+  const discountedUnitPrice = isSpecialPromo
+    ? Math.max(0, Number((basePrice - 2.00).toFixed(2)))
+    : isDiscounted
     ? Number((basePrice * (1 - discountPercentage / 100)).toFixed(2))
     : basePrice;
   const originalComparePrice = product.originalPrice || 20.00;
@@ -416,7 +419,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                       {formatPrice(basePrice * quantity, currency)}
                     </span>
                     <span className="px-2 py-0.5 rounded bg-[#e5b338]/15 border border-[#e5b338]/40 text-[#e5b338] text-xs font-black uppercase tracking-wider">
-                      {appliedPromo} • {discountPercentage}% OFF
+                      {appliedPromo === 'C0D3SPEC1AL15' ? 'Free Shipping + €2 OFF' : `${appliedPromo} • ${discountPercentage}% OFF`}
                     </span>
                   </>
                 ) : (
@@ -567,7 +570,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                   </div>
                   {appliedPromo && (
                     <span className="text-[10px] font-black uppercase tracking-wider text-[#e5b338] bg-[#e5b338]/15 px-2 py-0.5 rounded border border-[#e5b338]/30">
-                      {appliedPromo} Active
+                      {appliedPromo === 'C0D3SPEC1AL15' ? 'Free Shipping + €2 OFF' : `${appliedPromo} Active`}
                     </span>
                   )}
                 </div>
@@ -578,14 +581,18 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                       <CheckCircle className="w-4 h-4 text-[#e5b338] shrink-0" />
                       <div>
                         <div className="font-extrabold text-[#e5b338]">
-                          {appliedPromo === 'G1VEAWAY013'
+                          {appliedPromo === 'C0D3SPEC1AL15'
+                            ? 'Special Code C0D3SPEC1AL15 Applied: Free Shipping + €2.00 OFF 🎉'
+                            : appliedPromo === 'G1VEAWAY013'
                             ? 'Secret Giveaway Unlocked (100% OFF • One-Time Use) 🎁'
                             : appliedPromo === 'EDITOR15'
                             ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
                             : `Code ${appliedPromo} (${discountPercentage}% OFF)`}
                         </div>
                         <div className="text-[11px] text-zinc-400">
-                          Saving {formatPrice((basePrice * (discountPercentage / 100)) * quantity, currency)} on your gloves
+                          {appliedPromo === 'C0D3SPEC1AL15'
+                            ? `Saving €2.00 on gloves + Free Tracked Delivery (saved €3.99)`
+                            : `Saving ${formatPrice((basePrice * (discountPercentage / 100)) * quantity, currency)} on your gloves`}
                         </div>
                       </div>
                     </div>
@@ -614,7 +621,9 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                           const code = discountInput.trim().toUpperCase();
                           const ok = onApplyPromo(code);
                           if (ok) {
-                            if (code === 'G1VEAWAY013') {
+                            if (code === 'C0D3SPEC1AL15') {
+                              setDiscountSuccess('Special code unlocked! Free Shipping + €2 OFF applied!');
+                            } else if (code === 'G1VEAWAY013') {
                               setDiscountSuccess('Secret Giveaway Unlocked! 100% OFF (One-Time Use)!');
                             } else if (code === 'EDITOR15') {
                               setDiscountSuccess('Secret code unlocked! 15% off applied!');

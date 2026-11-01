@@ -159,10 +159,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   );
 
   const isGiveaway = appliedPromo === 'G1VEAWAY013';
-  const discountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
+  const isSpecialPromo = appliedPromo === 'C0D3SPEC1AL15';
+  const discountAmount = isSpecialPromo
+    ? Math.min(subtotal, 2.0)
+    : Number(((subtotal * discountPercentage) / 100).toFixed(2));
   const discountedSubtotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
 
-  const shippingCost = isGiveaway && discountPercentage === 100 ? 0 : 3.99;
+  const isFreeShipping = (isGiveaway && discountPercentage === 100) || isSpecialPromo;
+  const shippingCost = isFreeShipping ? 0 : 3.99;
   const grandTotal = isGiveaway && discountPercentage === 100 ? 0 : Math.max(0, Number((discountedSubtotal + shippingCost).toFixed(2)));
 
   // Handle Shipping Submit with Address Validation
@@ -662,7 +666,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div className="text-[11px] text-zinc-400">1-2 Working Days (All 32 Counties)</div>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-white">{formatPrice(shippingCost, currency)}</span>
+                <span className="text-xs font-bold text-white">
+                  {shippingCost === 0 ? <span className="text-emerald-400 font-bold uppercase">FREE</span> : formatPrice(shippingCost, currency)}
+                </span>
               </div>
             </div>
 
@@ -745,7 +751,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               )}
               <div className="flex justify-between text-zinc-400">
                 <span>Tracked Shipping Fee</span>
-                <span className="text-white font-medium">{formatPrice(shippingCost, currency)}</span>
+                <span className="text-white font-medium">
+                  {shippingCost === 0 ? <span className="text-emerald-400 font-bold uppercase">FREE</span> : formatPrice(shippingCost, currency)}
+                </span>
               </div>
               <div className="flex justify-between text-sm font-black text-white pt-2 border-t border-zinc-800">
                 <span className="uppercase">Final Amount Sent To Payment Processor</span>
@@ -764,7 +772,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 {appliedPromo && (
                   <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] bg-[#d4af37]/15 px-2 py-0.5 rounded border border-[#d4af37]/30">
-                    {appliedPromo} ({discountPercentage}% OFF)
+                    {appliedPromo === 'C0D3SPEC1AL15' ? 'Free Shipping + €2 OFF' : `${appliedPromo} (${discountPercentage}% OFF)`}
                   </span>
                 )}
               </div>
@@ -774,7 +782,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <div className="flex items-center gap-2 text-white">
                     <CheckCircle className="w-4 h-4 text-[#d4af37] shrink-0" />
                     <span className="font-bold text-[#d4af37]">
-                      {appliedPromo === 'G1VEAWAY013'
+                      {appliedPromo === 'C0D3SPEC1AL15'
+                        ? 'Special Code C0D3SPEC1AL15 Applied: Free Shipping + €2.00 OFF 🎉'
+                        : appliedPromo === 'G1VEAWAY013'
                         ? 'Secret Giveaway Unlocked (100% OFF • One-Time Use) 🎁'
                         : appliedPromo === 'EDITOR15'
                         ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
@@ -806,7 +816,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         const code = promoCodeInput.trim().toUpperCase();
                         const ok = onApplyPromo(code);
                         if (ok) {
-                          if (code === 'G1VEAWAY013') {
+                          if (code === 'C0D3SPEC1AL15') {
+                            setCheckoutPromoSuccess('Special code unlocked! Free Shipping + €2 OFF applied!');
+                          } else if (code === 'G1VEAWAY013') {
                             setCheckoutPromoSuccess('Secret Giveaway Unlocked! 100% OFF (One-Time Use)!');
                           } else if (code === 'EDITOR15') {
                             setCheckoutPromoSuccess('Secret code unlocked! 15% discount applied!');

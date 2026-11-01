@@ -170,9 +170,14 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                 const itemPers = item.personalization?.enabled ? 4.0 : 0;
                 return acc + (itemBase + itemPers) * item.quantity;
               }, 0);
-              const discount = promoRef.current ? (rawSubtotal * discountPercentage) / 100 : 0;
+              const isSpecialPromo = promoRef.current === 'C0D3SPEC1AL15';
+              const discount = isSpecialPromo
+                ? Math.min(rawSubtotal, 2.0)
+                : promoRef.current
+                ? (rawSubtotal * discountPercentage) / 100
+                : 0;
               const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
-              const shippingRate = 3.99;
+              const shippingRate = isSpecialPromo ? 0 : 3.99;
               const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
 
               if (actions?.order?.create) {
@@ -256,9 +261,14 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                     const itemPers = item.personalization?.enabled ? 4.0 : 0;
                     return acc + (itemBase + itemPers) * item.quantity;
                   }, 0);
-                  const discount = promoRef.current ? (rawSubtotal * discountPercentage) / 100 : 0;
+                  const isSpecialPromo = promoRef.current === 'C0D3SPEC1AL15';
+                  const discount = isSpecialPromo
+                    ? Math.min(rawSubtotal, 2.0)
+                    : promoRef.current
+                    ? (rawSubtotal * discountPercentage) / 100
+                    : 0;
                   const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
-                  const shippingRate = 3.99;
+                  const shippingRate = isSpecialPromo ? 0 : 3.99;
                   const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
 
                   const verifiedOrder: Order = {

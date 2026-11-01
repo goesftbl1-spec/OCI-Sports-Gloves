@@ -303,6 +303,12 @@ export default function App() {
       addToast('Secret Giveaway Unlocked! 🎁', 'G1VEAWAY013 applied: 100% OFF (One-Time Use)!');
       return true;
     }
+    if (clean === 'C0D3SPEC1AL15') {
+      setAppliedPromo('C0D3SPEC1AL15');
+      setDiscountPercentage(0);
+      addToast('Special Code Unlocked! 🎉', 'Code C0D3SPEC1AL15 applied: Free Shipping + €2 OFF!');
+      return true;
+    }
     if (clean === 'EDITOR15') {
       setAppliedPromo('EDITOR15');
       setDiscountPercentage(15);

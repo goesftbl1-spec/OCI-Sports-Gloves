@@ -44,10 +44,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     return acc + (itemBase + itemPers) * item.quantity;
   }, 0);
 
-  const discountAmount = (subtotal * discountPercentage) / 100;
-  const finalSubtotal = subtotal - discountAmount;
   const isGiveaway = appliedPromo === 'G1VEAWAY013';
-  const shippingFee = items.length > 0 ? (isGiveaway && discountPercentage === 100 ? 0 : 3.99) : 0;
+  const isSpecialPromo = appliedPromo === 'C0D3SPEC1AL15';
+  const discountAmount = isSpecialPromo
+    ? Math.min(subtotal, 2.0)
+    : (subtotal * discountPercentage) / 100;
+  const finalSubtotal = Math.max(0, subtotal - discountAmount);
+  const isFreeShipping = (isGiveaway && discountPercentage === 100) || isSpecialPromo;
+  const shippingFee = items.length > 0 ? (isFreeShipping ? 0 : 3.99) : 0;
   const totalWithShipping = Math.max(0, finalSubtotal + shippingFee);
 
   const handlePromoSubmit = (e: React.FormEvent) => {
@@ -59,7 +63,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     const cleanCode = promoInput.trim().toUpperCase();
     const ok = onApplyPromo(cleanCode);
     if (ok) {
-      if (cleanCode === 'G1VEAWAY013') {
+      if (cleanCode === 'C0D3SPEC1AL15') {
+        setPromoSuccess('Special code unlocked! Free Shipping + €2 OFF applied!');
+      } else if (cleanCode === 'G1VEAWAY013') {
         setPromoSuccess('Secret Giveaway Unlocked! 100% OFF (One-Time Use)!');
       } else if (cleanCode === 'EDITOR15') {
         setPromoSuccess('Secret code unlocked! 15% off active');
@@ -228,7 +234,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
                   {appliedPromo && (
                     <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] bg-[#d4af37]/15 px-2 py-0.5 rounded border border-[#d4af37]/30">
-                      {appliedPromo} ({discountPercentage}% OFF)
+                      {appliedPromo === 'C0D3SPEC1AL15' ? 'Free Shipping + €2 OFF' : `${appliedPromo} (${discountPercentage}% OFF)`}
                     </span>
                   )}
                 </div>
@@ -238,7 +244,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="flex items-center gap-2 text-white">
                       <CheckCircle className="w-4 h-4 text-[#d4af37] shrink-0" />
                       <span className="font-bold text-[#d4af37]">
-                        {appliedPromo === 'G1VEAWAY013'
+                        {appliedPromo === 'C0D3SPEC1AL15'
+                          ? 'Special Code C0D3SPEC1AL15 Applied: Free Shipping + €2.00 OFF 🎉'
+                          : appliedPromo === 'G1VEAWAY013'
                           ? 'Secret Giveaway Unlocked (100% OFF • One-Time Use) 🎁'
                           : appliedPromo === 'EDITOR15'
                           ? 'Secret Code EDITOR15 Unlocked (15% OFF) 🎉'
@@ -316,7 +324,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <div className="flex justify-between">
                   <span>Tracked Shipping Fee</span>
                   <span className="text-white font-semibold">
-                    {formatPrice(shippingFee, currency)}
+                    {shippingFee === 0 ? <span className="text-emerald-400 font-bold uppercase">FREE</span> : formatPrice(shippingFee, currency)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm font-black text-white pt-2 border-t border-zinc-800">

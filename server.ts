@@ -256,6 +256,8 @@ function computeAuthoritativeTotals(
 
   // Authoritative promo validation
   let discountPercentage = 0;
+  let fixedDiscountAmount = 0;
+  let isFreeShipping = false;
   let isOneTimeUsed = false;
   if (appliedPromo && typeof appliedPromo === "string") {
     const cleanPromo = appliedPromo.trim().toUpperCase();
@@ -264,18 +266,23 @@ function computeAuthoritativeTotals(
       const p = promos["G1VEAWAY013"];
       if (p && !p.isUsed) {
         discountPercentage = 100;
+        isFreeShipping = true;
       } else {
         isOneTimeUsed = true;
       }
+    } else if (cleanPromo === "C0D3SPEC1AL15") {
+      fixedDiscountAmount = 2.0;
+      isFreeShipping = true;
     } else if (VALID_PROMOS[cleanPromo]) {
       discountPercentage = VALID_PROMOS[cleanPromo];
     }
   }
 
-  const discountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
+  const percentageDiscountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
+  const discountAmount = Math.min(subtotal, Number((percentageDiscountAmount + fixedDiscountAmount).toFixed(2)));
   const shippingInfo = SHIPPING_RATES[shippingMethod] || SHIPPING_RATES["standard"];
   const isGiveaway = appliedPromo && appliedPromo.trim().toUpperCase() === "G1VEAWAY013" && discountPercentage === 100;
-  const shippingCost = isGiveaway ? 0 : shippingInfo.cost;
+  const shippingCost = (isGiveaway || isFreeShipping) ? 0 : shippingInfo.cost;
   const grandTotal = isGiveaway ? 0 : Math.max(0, Number((subtotal - discountAmount + shippingCost).toFixed(2)));
 
   return {
@@ -1231,6 +1238,18 @@ app.get("/api/promos/check/:code", (req, res) => {
       message: p.isUsed
         ? "This secret giveaway code has already been claimed! It was valid for ONE TIME USE only."
         : "Secret Giveaway Unlocked! 100% OFF (One-Time Use)",
+    });
+  }
+  if (code === "C0D3SPEC1AL15") {
+    return res.json({
+      valid: true,
+      code: "C0D3SPEC1AL15",
+      type: "special",
+      fixedDiscount: 2.0,
+      freeShipping: true,
+      oneTime: false,
+      isUsed: false,
+      message: "Special Code Unlocked! Free shipping + €2 off applied!",
     });
   }
   if (VALID_PROMOS[code]) {
