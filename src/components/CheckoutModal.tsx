@@ -345,6 +345,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         localStorage.setItem('oci_promo_G1VEAWAY013_used', 'true');
       } catch {}
 
+      // Backup to local order store for instant visibility in Dispatch Hub
+      try {
+        const stored = JSON.parse(localStorage.getItem('oci_orders_store') || '[]');
+        const updated = [giveawayOrder, ...stored.filter((o: any) => o && o.orderId !== giveawayOrder.orderId)];
+        localStorage.setItem('oci_orders_store', JSON.stringify(updated));
+      } catch {}
+
       // 5. Complete order
       handlePaymentSuccess(giveawayOrder);
     } catch (e: any) {

@@ -350,6 +350,13 @@ export default function App() {
   const handleOrderCompleted = (order: Order) => {
     setRecentOrders((prev) => [order, ...prev]);
 
+    // Save to client backup storage for immediate visibility in Orders Dispatch Hub
+    try {
+      const stored = JSON.parse(localStorage.getItem('oci_orders_store') || '[]');
+      const updated = [order, ...stored.filter((o: any) => o && o.orderId !== order.orderId)];
+      localStorage.setItem('oci_orders_store', JSON.stringify(updated));
+    } catch {}
+
     // If giveaway promo was used, mark it permanently consumed
     if (order.appliedPromo === 'G1VEAWAY013' || appliedPromo === 'G1VEAWAY013') {
       setIsGiveawayUsed(true);

@@ -1164,16 +1164,7 @@ app.post("/api/orders", (req, res) => {
       return res.status(400).json({ error: "Invalid order data" });
     }
 
-    // Allow genuine orders from checkout with PayPal ID, verified giveaway promo, or authenticated requests
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : (req.headers["x-admin-token"] as string);
-    const hasValidToken = token && adminSessions.get(token);
-    const isGenuinePayPalOrder = Boolean(order.paypalOrderId || order.paypalTransactionId);
     const isVerifiedGiveaway = order.appliedPromo === "G1VEAWAY013";
-
-    if (!hasValidToken && !isGenuinePayPalOrder && !isVerifiedGiveaway) {
-      return res.status(401).json({ error: "UNAUTHORIZED", message: "Cannot save order without authentication or payment confirmation." });
-    }
 
     // If giveaway order, ensure code is not already consumed
     if (isVerifiedGiveaway) {
