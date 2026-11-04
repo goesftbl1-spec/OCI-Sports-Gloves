@@ -170,15 +170,16 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                 const itemPers = item.personalization?.enabled ? 4.0 : 0;
                 return acc + (itemBase + itemPers) * item.quantity;
               }, 0);
+              const isTestCart = itemsRef.current.length > 0 && itemsRef.current.every((item) => (item.product?.id || item.id) === 'oci-test-1cent');
               const isSpecialPromo = promoRef.current === 'C0D3SPEC1AL15';
               const discount = isSpecialPromo
                 ? Math.min(rawSubtotal, 2.0)
                 : promoRef.current
                 ? (rawSubtotal * discountPercentage) / 100
                 : 0;
-              const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
-              const shippingRate = isSpecialPromo ? 0 : 3.99;
-              const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
+              const postDiscountSubtotal = Math.max(0.01, rawSubtotal - discount);
+              const shippingRate = isSpecialPromo || isTestCart ? 0 : 3.99;
+              const grandTotal = isTestCart ? 0.01 : Number((postDiscountSubtotal + shippingRate).toFixed(2));
 
               if (actions?.order?.create) {
                 const orderId = await actions.order.create({
@@ -200,6 +201,34 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                         },
                       },
                       description: 'OCI Sports Matchday Gloves Order',
+                      shipping: {
+                        name: {
+                          full_name: (shippingRef.current.fullName || 'Valued Customer').slice(0, 300),
+                        },
+                        address: {
+                          address_line_1: (shippingRef.current.addressLine1 || '').slice(0, 300),
+                          address_line_2: (shippingRef.current.addressLine2 || '').slice(0, 300),
+                          admin_area_2: (shippingRef.current.city || 'Dublin').slice(0, 120),
+                          admin_area_1: (shippingRef.current.county || 'Dublin').slice(0, 120),
+                          postal_code: (shippingRef.current.eircodePostcode || '').slice(0, 60),
+                          country_code: shippingRef.current.country === 'Ireland' ? 'IE' : shippingRef.current.country === 'United Kingdom' ? 'GB' : 'IE',
+                        },
+                      },
+                      items: itemsRef.current.map((it) => ({
+                        name: it.product.name.slice(0, 127),
+                        unit_amount: {
+                          currency_code: currencyRef.current || 'EUR',
+                          value: (it.product.price + (it.personalization?.enabled ? 4.0 : 0)).toFixed(2),
+                        },
+                        quantity: String(it.quantity),
+                        category: 'PHYSICAL_GOODS',
+                        description: `Size: ${it.selectedSize} | Cut: ${it.selectedCut}${it.personalization?.enabled ? ` | Foil: ${it.personalization.text}` : ''}`.slice(0, 127),
+                      })),
+                      custom_id: JSON.stringify({
+                        email: shippingRef.current.email,
+                        phone: shippingRef.current.phone,
+                        appliedPromo: promoRef.current,
+                      }),
                     },
                   ],
                 });
@@ -241,13 +270,20 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
               if (res.ok) {
                 const captureResult = await res.json();
                 if (captureResult.success && captureResult.order) {
+                  // Backup locally immediately
+                  try {
+                    const localExisting = JSON.parse(localStorage.getItem('oci_orders_store') || '[]');
+                    const localUpdated = [captureResult.order, ...localExisting.filter((o: any) => o.orderId !== captureResult.order.orderId)];
+                    localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
+                  } catch {}
+
                   setIsProcessing(false);
                   onSuccess(captureResult.order);
                   return;
                 }
               }
-            } catch {
-              // Server endpoint not reachable
+            } catch (serverCaptureErr) {
+              console.warn('Server capture notice:', serverCaptureErr);
             }
 
             // Direct PayPal SDK Capture (invokes PayPal live capture directly)
@@ -303,13 +339,13 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                   } catch {}
 
                   try {
-                    fetch('/api/orders', {
+                    await fetch('/api/orders', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(verifiedOrder),
-                    }).catch(() => {});
-                  } catch {
-                    // ignore network errors
+                    });
+                  } catch (orderSaveErr) {
+                    console.error('Error saving order to /api/orders:', orderSaveErr);
                   }
 
                   setIsProcessing(false);
@@ -321,10 +357,71 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
               }
               throw new Error('PayPal payment capture action is unavailable.');
             } catch (err: any) {
+              const errMsg = String(err?.message || '');
+              // If PayPal threw ORDER_ALREADY_CAPTURED, the card payment already succeeded!
+              if (errMsg.includes('ALREADY_CAPTURED') || errMsg.includes('ORDER_ALREADY_CAPTURED')) {
+                console.log('Order was already captured by card fields. Finalizing order confirmation...');
+                const rawSubtotal = itemsRef.current.reduce((acc, item) => {
+                  const itemBase = item.product.price;
+                  const itemPers = item.personalization?.enabled ? 4.0 : 0;
+                  return acc + (itemBase + itemPers) * item.quantity;
+                }, 0);
+                const isSpecialPromo = promoRef.current === 'C0D3SPEC1AL15';
+                const discount = isSpecialPromo
+                  ? Math.min(rawSubtotal, 2.0)
+                  : promoRef.current
+                  ? (rawSubtotal * discountPercentage) / 100
+                  : 0;
+                const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
+                const shippingRate = isSpecialPromo ? 0 : 3.99;
+                const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
+
+                const verifiedOrder: Order = {
+                  orderId: `OCI-GAA-${data.orderID.slice(-6).toUpperCase()}`,
+                  paypalOrderId: data.orderID,
+                  paypalTransactionId: `CAP-${data.orderID.slice(-8)}`,
+                  status: 'COMPLETED',
+                  payerEmail: shippingRef.current.email,
+                  createdAt: new Date().toLocaleDateString('en-IE', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  items: [...itemsRef.current],
+                  shippingCost: shippingRate,
+                  discountAmount: Number(discount.toFixed(2)),
+                  subtotal: Number(postDiscountSubtotal.toFixed(2)),
+                  total: grandTotal,
+                  currency: currencyRef.current || 'EUR',
+                  shippingDetails: { ...shippingRef.current },
+                  deliveryMethod: 'Tracked Express Delivery',
+                  paymentMethod: activeTab === 'card' ? 'card' : 'paypal',
+                };
+
+                try {
+                  const localExisting = JSON.parse(localStorage.getItem('oci_orders_store') || '[]');
+                  const localUpdated = [verifiedOrder, ...localExisting.filter((o: any) => o.orderId !== verifiedOrder.orderId)];
+                  localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
+                } catch {}
+
+                try {
+                  await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(verifiedOrder),
+                  });
+                } catch {}
+
+                setIsProcessing(false);
+                onSuccess(verifiedOrder);
+                return;
+              }
+
               hasCapturedRef.current = false;
               setIsProcessing(false);
-              const errMsg = err.message || 'Payment approval failed during capture. Please contact support.';
-              onError(errMsg);
+              onError(errMsg || 'Payment approval failed during capture. Please contact support.');
             }
           },
 

@@ -42,6 +42,43 @@ export const SINGLE_PRODUCT: Product = {
   bestFor: 'Any Condition, All GAA Matches & Training'
 };
 
+export const TEST_PRODUCT: Product = {
+  id: 'oci-test-1cent',
+  name: 'OCI TEST ITEM (1 CENT)',
+  subtitle: 'Internal Owner Card & PayPal Verification Item',
+  badge: 'TEST',
+  price: 0.01,
+  originalPrice: 1.00,
+  rating: 5.0,
+  reviewCount: 1,
+  images: {
+    front: bothGloveImage,
+    back: bigLogoGlovesImage,
+    palm: latexPalmImage,
+  },
+  description: 'Secret 1¢ Test Item (€0.01 with €0.00 Free Shipping) created exclusively for the store owner to test real card / PayPal checkout and confirm orders land in the Orders & Dispatch Hub.',
+  cut: 'Negative Cut',
+  palmLatex: 'Test Contact Grip',
+  bodyMaterial: 'Diagnostics Neoprene',
+  wristClosure: '1-Cent Test Protocol',
+  gripScore: 10,
+  durabilityScore: 10,
+  wetWeatherScore: 10,
+  keyFeatures: [
+    'Priced at exactly €0.01',
+    'Free Shipping (€0.00) applied automatically',
+    'Real credit/debit card and PayPal verification',
+    'Details instantly save to Orders & Dispatch Hub on payment'
+  ],
+  sizes: [
+    { size: 'S', inStock: true, stockCount: 99 },
+    { size: 'M', inStock: true, stockCount: 99 },
+    { size: 'L', inStock: true, stockCount: 99 }
+  ],
+  colorway: 'Blackout Stealth',
+  bestFor: 'Owner Order Verification'
+};
+
 export const PRODUCTS: Product[] = [SINGLE_PRODUCT];
 
 export const REVIEWS: Review[] = [

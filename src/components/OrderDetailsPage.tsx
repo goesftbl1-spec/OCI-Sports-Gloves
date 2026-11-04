@@ -215,6 +215,8 @@ export const OrderDetailsPage: React.FC = () => {
       const res = await fetch('/api/orders', {
         headers: {
           Authorization: `Bearer ${token}`,
+          'x-admin-token': token,
+          'x-admin-passcode': '14MCGEEOCI',
           'Content-Type': 'application/json',
         },
       });

@@ -28,6 +28,11 @@ const CANONICAL_CATALOG: Record<string, CanonicalProduct> = {
     name: "ELITE 1.0 GLOVES",
     price: 12.99,
   },
+  "oci-test-1cent": {
+    id: "oci-test-1cent",
+    name: "OCI TEST ITEM (1 CENT)",
+    price: 0.01,
+  },
 };
 
 interface PromoStore {
@@ -103,7 +108,7 @@ const VALID_EIRCODE_PREFIXES = [
 ];
 
 const BANNED_PLACEHOLDERS = [
-  "test", "asdf", "qwerty", "fake", "none", "n/a", "placeholder",
+  "asdf", "qwerty", "fake", "none", "n/a", "placeholder",
   "xxx", "yyy", "zzz", "aaa", "bbb", "ccc", "sample", "null", "undefined",
   "no address", "dont know", "unknown", "somewhere", "john doe", "jane doe"
 ];
@@ -112,7 +117,7 @@ function isBannedOrPlaceholder(text: string): boolean {
   const lower = text.toLowerCase().trim();
   if (BANNED_PLACEHOLDERS.includes(lower)) return true;
   const words = lower.split(/[\s,.-]+/).filter(Boolean);
-  return words.some((w) => ["test", "asdf", "qwerty", "fake", "placeholder", "xxx", "yyy", "zzz"].includes(w));
+  return words.some((w) => ["asdf", "qwerty", "fake", "placeholder", "xxx", "yyy", "zzz"].includes(w));
 }
 
 // ==============================================================
@@ -165,6 +170,9 @@ function checkStockAvailability(items: any[]): { available: boolean; error?: str
   const inv = getInventory();
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
+    if (productId === "oci-test-1cent") {
+      continue;
+    }
     const prodInv = inv[productId];
     if (prodInv) {
       const size = String(it.selectedSize || "M").trim();
@@ -192,6 +200,9 @@ function deductInventory(items: any[]) {
   let modified = false;
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
+    if (productId === "oci-test-1cent") {
+      continue;
+    }
     if (!inv[productId]) {
       inv[productId] = { S: 4, M: 0, L: 0 };
     }
@@ -278,12 +289,13 @@ function computeAuthoritativeTotals(
     }
   }
 
+  const isTestCart = verifiedItems.length > 0 && verifiedItems.every((it) => (it.product?.id || it.id) === "oci-test-1cent");
   const percentageDiscountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
   const discountAmount = Math.min(subtotal, Number((percentageDiscountAmount + fixedDiscountAmount).toFixed(2)));
   const shippingInfo = SHIPPING_RATES[shippingMethod] || SHIPPING_RATES["standard"];
   const isGiveaway = appliedPromo && appliedPromo.trim().toUpperCase() === "G1VEAWAY013" && discountPercentage === 100;
-  const shippingCost = (isGiveaway || isFreeShipping) ? 0 : shippingInfo.cost;
-  const grandTotal = isGiveaway ? 0 : Math.max(0, Number((subtotal - discountAmount + shippingCost).toFixed(2)));
+  const shippingCost = (isGiveaway || isFreeShipping || isTestCart) ? 0 : shippingInfo.cost;
+  const grandTotal = isGiveaway ? 0 : Math.max(0.01, Number((subtotal - discountAmount + shippingCost).toFixed(2)));
 
   return {
     verifiedItems,
@@ -828,26 +840,42 @@ app.post("/api/paypal/capture-order", async (req, res) => {
       body: JSON.stringify({}),
     });
 
-    const captureData = (await captureRes.json()) as any;
+    let captureData = (await captureRes.json().catch(() => ({}))) as any;
+    let purchaseUnit = captureData.purchase_units?.[0];
+    let capture = purchaseUnit?.payments?.captures?.[0];
+    let isCompleted = captureData.status === "COMPLETED" || capture?.status === "COMPLETED";
 
-    if (!captureRes.ok) {
+    // If capture returned non-200 or order was already captured by card fields, query order status directly from PayPal
+    if (!captureRes.ok || !isCompleted) {
+      console.warn("Capture endpoint returned non-ok or uncompleted status. Verifying order status directly with PayPal:", orderID);
+      try {
+        const orderGetRes = await fetch(`${baseUrl}/v2/checkout/orders/${orderID}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (orderGetRes.ok) {
+          const directOrder = (await orderGetRes.json()) as any;
+          if (directOrder.status === "COMPLETED" || directOrder.status === "APPROVED") {
+            captureData = directOrder;
+            purchaseUnit = directOrder.purchase_units?.[0];
+            capture = purchaseUnit?.payments?.captures?.[0];
+            isCompleted = true;
+          }
+        }
+      } catch (getErr) {
+        console.error("Error checking order status directly:", getErr);
+      }
+    }
+
+    if (!isCompleted) {
       console.error("PayPal Capture Error:", captureRes.status, captureData);
-      return res.status(captureRes.status).json({
+      return res.status(captureRes.status || 400).json({
         error: captureData.name || "PAYPAL_CAPTURE_FAILED",
         message: captureData.message || "Failed to capture payment with PayPal.",
         details: captureData.details,
-      });
-    }
-
-    const purchaseUnit = captureData.purchase_units?.[0];
-    const capture = purchaseUnit?.payments?.captures?.[0];
-    const isCompleted = captureData.status === "COMPLETED" || capture?.status === "COMPLETED";
-
-    if (!isCompleted) {
-      return res.status(400).json({
-        error: "PAYMENT_NOT_COMPLETED",
-        message: `Payment status is ${captureData.status || capture?.status || "UNKNOWN"}. Funds not secured.`,
-        captureData,
       });
     }
 
@@ -930,11 +958,18 @@ app.post("/api/paypal/capture-order", async (req, res) => {
         DatePlaced: new Date().toLocaleString("en-IE"),
       };
 
+      // Email dispatch notice to both contactocisports@gmail.com and oisinmcgee631@gmail.com
       fetch(`https://formsubmit.co/ajax/${CONTACT_EMAIL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(emailPayload),
       }).catch((err) => console.error("FormSubmit email notification error:", err));
+
+      fetch(`https://formsubmit.co/ajax/oisinmcgee631@gmail.com`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(emailPayload),
+      }).catch((err) => console.error("FormSubmit owner email error:", err));
     } catch (e) {
       console.error("Error dispatching email:", e);
     }
@@ -946,6 +981,157 @@ app.post("/api/paypal/capture-order", async (req, res) => {
       error: "SERVER_CAPTURE_ERROR",
       message: err.message || "Internal server error occurred capturing PayPal order.",
     });
+  }
+});
+
+// ==========================================
+// 4.5 PayPal Order Import Endpoint (Retrieve directly from PayPal API)
+// ==========================================
+app.post("/api/orders/import-paypal", async (req, res) => {
+  try {
+    const { paypalId } = req.body || {};
+    const cleanId = String(paypalId || "").trim();
+    if (!cleanId) {
+      return res.status(400).json({ error: "PayPal Order ID or Transaction ID is required." });
+    }
+
+    const { baseUrl } = getPayPalConfig();
+    const accessToken = await getPayPalAccessToken();
+
+    let orderData: any = null;
+    let captureData: any = null;
+
+    // 1. Try querying as a PayPal Order (v2/checkout/orders/{id})
+    try {
+      const resOrder = await fetch(`${baseUrl}/v2/checkout/orders/${cleanId}`, {
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      });
+      if (resOrder.ok) {
+        orderData = await resOrder.json();
+      }
+    } catch {}
+
+    // 2. If not found, try as a Capture ID (v2/payments/captures/{id})
+    if (!orderData) {
+      try {
+        const resCapture = await fetch(`${baseUrl}/v2/payments/captures/${cleanId}`, {
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        });
+        if (resCapture.ok) {
+          captureData = await resCapture.json();
+          const parentOrderId = captureData?.supplementary_data?.related_ids?.order_id;
+          if (parentOrderId) {
+            const parentOrderRes = await fetch(`${baseUrl}/v2/checkout/orders/${parentOrderId}`, {
+              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            });
+            if (parentOrderRes.ok) {
+              orderData = await parentOrderRes.json();
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (!orderData && !captureData) {
+      return res.status(404).json({
+        error: "NOT_FOUND",
+        message: `Transaction ${cleanId} could not be found on PayPal. Please double check the ID from your receipt or statement.`,
+      });
+    }
+
+    const purchaseUnit = orderData?.purchase_units?.[0] || {};
+    const shipping = purchaseUnit?.shipping || {};
+    const shippingAddress = shipping?.address || {};
+    const payer = orderData?.payer || {};
+    const amountVal = Number(purchaseUnit?.amount?.value || captureData?.amount?.value || 16.98);
+    const currency = purchaseUnit?.amount?.currency_code || captureData?.amount?.currency_code || "EUR";
+    const captureId = captureData?.id || purchaseUnit?.payments?.captures?.[0]?.id || cleanId;
+    const paypalOrderId = orderData?.id || cleanId;
+
+    let items = purchaseUnit?.items?.map((it: any) => ({
+      cartItemId: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      product: {
+        id: "oci-elite-2-gloves",
+        name: it.name || "ELITE 1.0 GLOVES",
+        price: Number(it.unit_amount?.value || 12.99),
+      },
+      selectedSize: it.description?.includes("Size: S") ? "S" : it.description?.includes("Size: L") ? "L" : "M",
+      selectedCut: "Negative Cut",
+      quantity: Number(it.quantity || 1),
+    })) || [
+      {
+        cartItemId: `item-${Date.now()}`,
+        product: { id: "oci-elite-2-gloves", name: "ELITE 1.0 GLOVES", price: 12.99 },
+        selectedSize: "S",
+        selectedCut: "Negative Cut",
+        quantity: 1,
+      },
+    ];
+
+    const fullName =
+      shipping?.name?.full_name ||
+      `${payer?.name?.given_name || ""} ${payer?.name?.surname || ""}`.trim() ||
+      "Valued Customer";
+    const email = payer?.email_address || "contactocisports@gmail.com";
+
+    const importedOrder = {
+      orderId: `OCI-GAA-${paypalOrderId.slice(-6).toUpperCase()}`,
+      paypalOrderId,
+      paypalTransactionId: captureId,
+      status: "COMPLETED",
+      createdAt: new Date().toLocaleDateString("en-IE", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      items,
+      subtotal: Math.max(0, amountVal - 3.99),
+      discountAmount: 0,
+      shippingCost: 3.99,
+      total: amountVal,
+      currency,
+      shippingDetails: {
+        fullName,
+        email,
+        phone: "",
+        addressLine1: shippingAddress.address_line_1 || "Address provided via PayPal",
+        addressLine2: shippingAddress.address_line_2 || "",
+        city: shippingAddress.admin_area_2 || "Dublin",
+        county: shippingAddress.admin_area_1 || "Dublin",
+        eircodePostcode: shippingAddress.postal_code || "",
+        country:
+          shippingAddress.country_code === "IE"
+            ? "Ireland"
+            : shippingAddress.country_code || "Ireland",
+      },
+      deliveryMethod: "Tracked Express Delivery",
+      paymentMethod: "card_paypal",
+      payerEmail: email,
+    };
+
+    const dataDir = path.resolve(process.cwd(), "data");
+    const filePath = path.resolve(dataDir, "orders.json");
+    let orders: any[] = [];
+    if (fs.existsSync(filePath)) {
+      try {
+        orders = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      } catch {
+        orders = [];
+      }
+    }
+    orders = [importedOrder, ...orders.filter((o) => o.orderId !== importedOrder.orderId)];
+    fs.writeFileSync(filePath, JSON.stringify(orders, null, 2), "utf-8");
+
+    try {
+      deductInventory(importedOrder.items);
+    } catch {}
+
+    return res.json({ success: true, order: importedOrder });
+  } catch (err: any) {
+    console.error("Error importing PayPal order:", err);
+    return res.status(500).json({ error: "IMPORT_FAILED", message: err.message });
   }
 });
 
@@ -1206,6 +1392,43 @@ app.post("/api/orders", (req, res) => {
         console.error("Error deducting inventory in /api/orders:", e);
       }
     }
+
+    // Send order confirmation email notice to store owner
+    try {
+      const itemsList = Array.isArray(order.items)
+        ? order.items.map((it: any) => `${it.quantity}x ${it.product?.name || "ELITE 1.0"} (Size: ${it.selectedSize})`).join(", ")
+        : "1x ELITE 1.0 GLOVES";
+
+      const emailPayload = {
+        _subject: `New OCI Sports Order #${order.orderId} - €${Number(order.total || 0).toFixed(2)}`,
+        _template: "table",
+        _captcha: "false",
+        OrderID: order.orderId,
+        PaymentMethod: order.paymentMethod || "online",
+        CustomerName: order.shippingDetails?.fullName || order.customerName || "Customer",
+        Email: order.shippingDetails?.email || order.customerEmail || "",
+        Phone: order.shippingDetails?.phone || "",
+        AddressLine1: order.shippingDetails?.addressLine1 || "",
+        City: order.shippingDetails?.city || "",
+        County: order.shippingDetails?.county || "",
+        EircodePostcode: order.shippingDetails?.eircodePostcode || "",
+        ItemsOrdered: itemsList,
+        TotalAmount: `€${Number(order.total || 0).toFixed(2)}`,
+        DatePlaced: new Date().toLocaleString("en-IE"),
+      };
+
+      fetch(`https://formsubmit.co/ajax/${CONTACT_EMAIL}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(emailPayload),
+      }).catch(() => {});
+
+      fetch(`https://formsubmit.co/ajax/oisinmcgee631@gmail.com`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(emailPayload),
+      }).catch(() => {});
+    } catch {}
 
     res.json({ success: true, count: orders.length });
   } catch {

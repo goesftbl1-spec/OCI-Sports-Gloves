@@ -17,7 +17,7 @@ import { OrderDetailsPage } from './components/OrderDetailsPage';
 import { CollectionPage } from './components/CollectionPage';
 import { Lock } from 'lucide-react';
 
-import { SINGLE_PRODUCT, PRODUCTS, REVIEWS } from './data/mockData';
+import { SINGLE_PRODUCT, PRODUCTS, REVIEWS, TEST_PRODUCT } from './data/mockData';
 import { Product, CartItem, GloveSize, Currency, Review, Order } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -148,13 +148,44 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // Secret 1-Cent Test Mode state
+  const [isSecretTestMode, setIsSecretTestMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const hash = window.location.hash.toLowerCase();
+    const search = window.location.search.toLowerCase();
+    const pathname = window.location.pathname.toLowerCase();
+    return (
+      hash === '#test-item' ||
+      hash === '#test-001' ||
+      hash === '#test' ||
+      search.includes('test=1') ||
+      pathname === '/test-item'
+    );
+  });
+
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.toLowerCase();
       setIsOrderDetailsRoute(path === '/order-details' || path === '/order-details/');
+
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (
+        hash === '#test-item' ||
+        hash === '#test-001' ||
+        hash === '#test' ||
+        search.includes('test=1') ||
+        path === '/test-item'
+      ) {
+        setIsSecretTestMode(true);
+      }
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, []);
 
   // Owner shortcut: Ctrl+Shift+O (or Cmd+Shift+O) or URL param ?dispatch=1 / ?admin=1 to toggle protected Orders & Dispatch Hub
@@ -265,6 +296,21 @@ export default function App() {
     }
   };
 
+  const handleLaunchTestCheckout = (size: GloveSize = 'S') => {
+    const testCartItem: CartItem = {
+      cartItemId: `oci-test-1cent-${size}`,
+      product: TEST_PRODUCT,
+      selectedSize: size,
+      selectedCut: TEST_PRODUCT.cut,
+      quantity: 1,
+    };
+    setCartItems([testCartItem]);
+    setIsOrdersModalOpen(false);
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+    addToast('1¢ Secret Test Loaded', 'Checkout opened for €0.01 card test (Free Shipping).');
+  };
+
   const handleUpdateQuantity = (cartItemId: string, delta: number) => {
     setCartItems((prev) =>
       prev
@@ -357,6 +403,15 @@ export default function App() {
       localStorage.setItem('oci_orders_store', JSON.stringify(updated));
     } catch {}
 
+    // Ensure order is sent and persisted to server database
+    try {
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      }).catch(() => {});
+    } catch {}
+
     // If giveaway promo was used, mark it permanently consumed
     if (order.appliedPromo === 'G1VEAWAY013' || appliedPromo === 'G1VEAWAY013') {
       setIsGiveawayUsed(true);
@@ -375,6 +430,7 @@ export default function App() {
       setInventory((prev) => {
         const next = { ...prev };
         order.items.forEach((it) => {
+          if ((it.product?.id || it.id) === 'oci-test-1cent') return;
           const sz = it.selectedSize;
           if (next[sz] !== undefined) {
             next[sz] = Math.max(0, next[sz] - it.quantity);
@@ -404,6 +460,43 @@ export default function App() {
   return (
     <div className="min-h-screen bg-black text-[#f4f4f5] flex flex-col font-['Plus_Jakarta_Sans',sans-serif] selection:bg-[#e5b338]/30 selection:text-white">
       
+      {/* Secret 1-Cent Test Mode Alert Banner */}
+      {isSecretTestMode && (
+        <div className="bg-gradient-to-r from-amber-950 via-zinc-950 to-amber-950 border-b border-amber-500/50 text-amber-200 px-4 py-2.5 sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/60 flex items-center justify-center text-amber-400 font-mono font-black text-xs">
+              1¢
+            </span>
+            <div>
+              <div className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2">
+                <span>Secret Owner Test Item Activated</span>
+                <span className="bg-amber-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded font-mono">€0.01 + Free Delivery</span>
+              </div>
+              <p className="text-[11px] text-zinc-300">
+                Created exclusively for you to test real card/PayPal payment for €0.01 and confirm order details appear in the Dispatch Hub.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleLaunchTestCheckout('S')}
+              className="px-3.5 py-1.5 bg-[#d4af37] hover:bg-[#c59e2b] text-black font-black text-xs uppercase tracking-wider rounded-lg transition shadow cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Open 1¢ Checkout</span>
+            </button>
+            <button
+              onClick={() => {
+                setIsSecretTestMode(false);
+                if (window.location.hash) window.location.hash = '';
+              }}
+              className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs rounded-lg transition cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Minimal Top Header */}
       <Navbar
         currentPage={currentPage}
@@ -529,6 +622,19 @@ export default function App() {
               <Lock className="w-3 h-3 text-zinc-500" />
               <span>Staff Portal</span>
             </button>
+            <span className="text-zinc-800">•</span>
+            <a
+              href="#test-item"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsSecretTestMode(true);
+                handleLaunchTestCheckout('S');
+              }}
+              className="text-zinc-700 hover:text-amber-400 transition-colors cursor-pointer text-[10px]"
+              title="Secret 1¢ Card Test"
+            >
+              • 1¢ Test
+            </a>
           </div>
 
           <div className="text-[11px] text-zinc-500">
@@ -587,6 +693,7 @@ export default function App() {
         isOpen={isOrdersModalOpen}
         onClose={() => setIsOrdersModalOpen(false)}
         recentOrders={recentOrders}
+        onLaunchTestCheckout={() => handleLaunchTestCheckout('S')}
       />
 
       {/* Live Chat Support Widget */}

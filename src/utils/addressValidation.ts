@@ -44,7 +44,7 @@ export const COUNTY_ROUTING_MAP: Record<string, string[]> = {
 };
 
 const BANNED_PLACEHOLDERS = [
-  'test', 'asdf', 'qwerty', 'fake', 'none', 'n/a', 'placeholder',
+  'asdf', 'qwerty', 'fake', 'none', 'n/a', 'placeholder',
   'xxx', 'yyy', 'zzz', 'aaa', 'bbb', 'ccc', 'sample', 'null', 'undefined',
   'no address', 'dont know', 'unknown', 'somewhere', 'john doe', 'jane doe'
 ];
@@ -53,7 +53,7 @@ function isBannedOrPlaceholder(text: string): boolean {
   const lower = text.toLowerCase().trim();
   if (BANNED_PLACEHOLDERS.includes(lower)) return true;
   const words = lower.split(/[\s,.-]+/).filter(Boolean);
-  return words.some((w) => ['test', 'asdf', 'qwerty', 'fake', 'placeholder', 'xxx', 'yyy', 'zzz'].includes(w));
+  return words.some((w) => ['asdf', 'qwerty', 'fake', 'placeholder', 'xxx', 'yyy', 'zzz'].includes(w));
 }
 
 export interface AddressValidationResult {
