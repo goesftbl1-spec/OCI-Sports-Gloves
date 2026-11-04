@@ -36,7 +36,6 @@ interface OrdersDispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   recentOrders?: Order[];
-  onLaunchTestCheckout?: () => void;
 }
 
 type OrderStatus = 'Pending' | 'Processing' | 'Dispatched' | 'Delivered' | 'Cancelled';
@@ -114,7 +113,6 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
   isOpen,
   onClose,
   recentOrders = [],
-  onLaunchTestCheckout,
 }) => {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -776,20 +774,6 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
               </div>
 
               <div className="flex items-center gap-2">
-                {onLaunchTestCheckout && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onLaunchTestCheckout();
-                    }}
-                    title="Launch secret 1¢ checkout test"
-                    className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="hidden sm:inline">Launch 1¢ Test</span>
-                  </button>
-                )}
 
                 <button
                   type="button"

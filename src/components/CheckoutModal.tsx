@@ -165,10 +165,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     : Number(((subtotal * discountPercentage) / 100).toFixed(2));
   const discountedSubtotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
 
-  const isTestCart = items.length > 0 && items.every((item) => item.product.id === 'oci-test-1cent');
-  const isFreeShipping = (isGiveaway && discountPercentage === 100) || isSpecialPromo || isTestCart;
+  const isFreeShipping = (isGiveaway && discountPercentage === 100) || isSpecialPromo;
   const shippingCost = isFreeShipping ? 0 : 3.99;
-  const grandTotal = isGiveaway && discountPercentage === 100 ? 0 : Math.max(0.01, Number((discountedSubtotal + shippingCost).toFixed(2)));
+  const grandTotal = isGiveaway && discountPercentage === 100 ? 0 : Math.max(0, Number((discountedSubtotal + shippingCost).toFixed(2)));
 
   // Handle Shipping Submit with Address Validation
   const handleShippingSubmit = async (e: React.FormEvent) => {

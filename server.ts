@@ -28,11 +28,6 @@ const CANONICAL_CATALOG: Record<string, CanonicalProduct> = {
     name: "ELITE 1.0 GLOVES",
     price: 12.99,
   },
-  "oci-test-1cent": {
-    id: "oci-test-1cent",
-    name: "OCI TEST ITEM (1 CENT)",
-    price: 0.01,
-  },
 };
 
 interface PromoStore {
@@ -170,9 +165,6 @@ function checkStockAvailability(items: any[]): { available: boolean; error?: str
   const inv = getInventory();
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
-    if (productId === "oci-test-1cent") {
-      continue;
-    }
     const prodInv = inv[productId];
     if (prodInv) {
       const size = String(it.selectedSize || "M").trim();
@@ -200,9 +192,6 @@ function deductInventory(items: any[]) {
   let modified = false;
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
-    if (productId === "oci-test-1cent") {
-      continue;
-    }
     if (!inv[productId]) {
       inv[productId] = { S: 4, M: 0, L: 0 };
     }
@@ -289,12 +278,11 @@ function computeAuthoritativeTotals(
     }
   }
 
-  const isTestCart = verifiedItems.length > 0 && verifiedItems.every((it) => (it.product?.id || it.id) === "oci-test-1cent");
   const percentageDiscountAmount = Number(((subtotal * discountPercentage) / 100).toFixed(2));
   const discountAmount = Math.min(subtotal, Number((percentageDiscountAmount + fixedDiscountAmount).toFixed(2)));
   const shippingInfo = SHIPPING_RATES[shippingMethod] || SHIPPING_RATES["standard"];
   const isGiveaway = appliedPromo && appliedPromo.trim().toUpperCase() === "G1VEAWAY013" && discountPercentage === 100;
-  const shippingCost = (isGiveaway || isFreeShipping || isTestCart) ? 0 : shippingInfo.cost;
+  const shippingCost = (isGiveaway || isFreeShipping) ? 0 : shippingInfo.cost;
   const grandTotal = isGiveaway ? 0 : Math.max(0.01, Number((subtotal - discountAmount + shippingCost).toFixed(2)));
 
   return {
