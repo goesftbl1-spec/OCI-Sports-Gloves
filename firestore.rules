@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if true;
+      allow create: if isValidId(orderId) &&
+        incoming().orderId is string &&
+        incoming().orderId.size() <= 128 &&
+        incoming().total is number &&
+        incoming().total >= 0 &&
+        incoming().status is string &&
+        incoming().status.size() <= 32;
+      allow update: if isValidId(orderId) &&
+        incoming().orderId == existing().orderId;
+      allow delete: if false;
+    }
+
+    // Inventory Collection
+    match /inventory/{productId} {
+      allow read: if isValidId(productId);
+      allow write: if isValidId(productId) &&
+        incoming().S is number && incoming().S >= 0 &&
+        incoming().M is number && incoming().M >= 0 &&
+        incoming().L is number && incoming().L >= 0;
+    }
+
+    // Promos Collection
+    match /promos/{promoId} {
+      allow read: if isValidId(promoId);
+      allow write: if isValidId(promoId);
+    }
+  }
+}

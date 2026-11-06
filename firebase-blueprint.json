@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order for Gaelic gloves",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "paypalOrderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "paypalTransactionId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "Processing", "Dispatched", "Delivered", "Cancelled", "paid", "completed"]
+        },
+        "customerEmail": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "customerName": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "total": {
+          "type": "number"
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "shippingCost": {
+          "type": "number"
+        },
+        "discountAmount": {
+          "type": "number"
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "appliedPromo": {
+          "type": "string",
+          "maxLength": 50
+        }
+      },
+      "required": ["orderId", "status", "total", "createdAt"]
+    },
+    "Inventory": {
+      "title": "Inventory",
+      "description": "Stock count per glove size",
+      "type": "object",
+      "properties": {
+        "S": {
+          "type": "number"
+        },
+        "M": {
+          "type": "number"
+        },
+        "L": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": ["S", "M", "L"]
+    },
+    "PromoRedemption": {
+      "title": "PromoRedemption",
+      "description": "Record of redeemed one-time promo codes",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "orderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "redeemedAt": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": ["code", "orderId"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders and shipping dispatch details"
+    },
+    "/inventory/{productId}": {
+      "schema": "Inventory",
+      "description": "Live stock levels for glove sizes"
+    },
+    "/promos/{promoId}": {
+      "schema": "PromoRedemption",
+      "description": "One-time promo code redemption status"
+    }
+  }
+}

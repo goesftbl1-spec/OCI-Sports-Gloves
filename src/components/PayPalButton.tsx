@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { loadScript } from '@paypal/paypal-js';
 import { CartItem, Currency, ShippingDetails, Order } from '../types';
 import { AlertCircle, RefreshCw, CreditCard, ShieldCheck, HelpCircle } from 'lucide-react';
+import { saveOrderToFirestore, deductInventoryInFirestore } from '../services/firestoreOrders';
 
 interface PayPalButtonProps {
   clientId: string;
@@ -416,6 +417,14 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                     localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
                   } catch {}
 
+                  // Real-time Firestore Cloud Sync (ensures order shows in Dispatch Hub and sizes decrement)
+                  try {
+                    await saveOrderToFirestore(verifiedOrder);
+                    await deductInventoryInFirestore(verifiedOrder.items);
+                  } catch (fsErr) {
+                    console.warn('Firestore cloud sync notice:', fsErr);
+                  }
+
                   try {
                     await fetch('/api/orders', {
                       method: 'POST',
@@ -483,6 +492,14 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                   const localUpdated = [verifiedOrder, ...localExisting.filter((o: any) => o.orderId !== verifiedOrder.orderId)];
                   localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
                 } catch {}
+
+                // Real-time Firestore Cloud Sync
+                try {
+                  await saveOrderToFirestore(verifiedOrder);
+                  await deductInventoryInFirestore(verifiedOrder.items);
+                } catch (fsErr) {
+                  console.warn('Firestore cloud sync notice:', fsErr);
+                }
 
                 try {
                   await fetch('/api/orders', {

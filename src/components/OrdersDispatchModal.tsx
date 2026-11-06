@@ -31,6 +31,12 @@ import {
 } from 'lucide-react';
 import { Order } from '../types';
 import { formatPrice, formatOrderDateTime } from '../utils/formatters';
+import {
+  subscribeOrders,
+  updateOrderInFirestore,
+  saveOrderToFirestore,
+  setInventoryInFirestore
+} from '../services/firestoreOrders';
 
 interface OrdersDispatchModalProps {
   isOpen: boolean;
@@ -287,10 +293,30 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
   useEffect(() => {
     if (isOpen && isAuthenticated) {
       loadOrders();
+
+      // Real-time Firestore Live Subscription for Dispatch Hub
+      const unsubscribeFirestore = subscribeOrders((liveOrders) => {
+        if (Array.isArray(liveOrders) && liveOrders.length > 0) {
+          setOrders((prev) => {
+            const map = new Map<string, Order>();
+            [...liveOrders, ...prev].forEach((o) => {
+              if (o && o.orderId && !map.has(o.orderId)) {
+                map.set(o.orderId, o);
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
+      });
+
       fetch('/api/paypal/config')
         .then((r) => r.json())
         .then((data) => setGatewayConfig(data))
         .catch(() => {});
+
+      return () => {
+        unsubscribeFirestore();
+      };
     }
   }, [isOpen, isAuthenticated]);
 
@@ -298,11 +324,11 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     const activePasscode = getSavedPasscode();
     const nowIso = new Date().toISOString();
+    const isDispatched = newStatus === 'Dispatched';
 
     setOrders((prev) => {
       const updated = prev.map((ord) => {
         if (ord.orderId === orderId) {
-          const isDispatched = newStatus === 'Dispatched';
           return {
             ...ord,
             status: newStatus,
@@ -322,8 +348,15 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
     setActionNotice(`Status for #${orderId} updated to ${newStatus}`);
     setTimeout(() => setActionNotice(null), 3500);
 
+    // Sync status update to Firestore Cloud Database
+    updateOrderInFirestore(orderId, {
+      status: newStatus,
+      dispatchStatus: newStatus.toLowerCase(),
+      ...(isDispatched ? { dispatchDate: nowIso } : {}),
+      updatedAt: nowIso,
+    }).catch(() => {});
+
     try {
-      const isDispatched = newStatus === 'Dispatched';
       await fetch(`/api/orders/${encodeURIComponent(orderId)}/status`, {
         method: 'PATCH',
         headers: {
@@ -395,6 +428,17 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
       } catch {}
       return updated;
     });
+
+    // Sync dispatch details to Firestore Cloud Database
+    updateOrderInFirestore(orderId, {
+      status: nextStatus,
+      dispatchStatus: nextStatus.toLowerCase(),
+      trackingNumber: newTracking,
+      carrier: newCarrier,
+      notes: newNotes,
+      dispatchDate: nextDispatchDate,
+      updatedAt: nowIso,
+    }).catch(() => {});
 
     try {
       await fetch(`/api/orders/${encodeURIComponent(orderId)}/status`, {
@@ -563,6 +607,10 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
           } catch {}
           return updated;
         });
+
+        // Save imported order to Firestore Cloud Database
+        saveOrderToFirestore(data.order).catch(() => {});
+
         setActionNotice(`Successfully imported Order #${data.order.orderId} from PayPal!`);
         setShowImportBar(false);
         setImportPaypalId('');

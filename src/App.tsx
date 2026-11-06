@@ -20,6 +20,12 @@ import { Lock } from 'lucide-react';
 import { SINGLE_PRODUCT, PRODUCTS, REVIEWS } from './data/mockData';
 import { Product, CartItem, GloveSize, Currency, Review, Order } from './types';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  subscribeInventory,
+  subscribeOrders,
+  deductInventoryInFirestore,
+  saveOrderToFirestore
+} from './services/firestoreOrders';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'collection' | 'product'>('home');
@@ -39,7 +45,7 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>(REVIEWS);
   const [selectedProduct, setSelectedProduct] = useState<Product>(SINGLE_PRODUCT);
 
-  // Exact inventory tracking: 5 Small left, others sold out
+  // Exact inventory tracking: 5 Small left, Medium sold out (just purchased), Large sold out
   const [inventory, setInventory] = useState<Record<GloveSize, number>>(() => {
     try {
       const saved = localStorage.getItem('oci_inventory_v4');
@@ -47,36 +53,33 @@ export default function App() {
     } catch {}
     return {
       S: 5,
-      M: 1,
+      M: 0,
       L: 0,
     } as Record<GloveSize, number>;
   });
 
-  // Sync with authoritative server inventory on load and periodic intervals
+  // Real-time Firestore Cloud Synchronization for Inventory & Orders
   useEffect(() => {
-    const fetchLiveInventory = () => {
-      fetch('/api/inventory')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.inventory?.['oci-elite-2-gloves']) {
-            const inv = data.inventory['oci-elite-2-gloves'];
-            setInventory((prev) => ({
-              ...prev,
-              S: typeof inv.S === 'number' ? inv.S : prev.S,
-              M: typeof inv.M === 'number' ? inv.M : prev.M,
-              L: typeof inv.L === 'number' ? inv.L : prev.L,
-            }));
-          }
-        })
-        .catch((e) => console.warn('Could not fetch server inventory:', e));
-    };
+    // 1. Live Firestore Inventory Listener
+    const unsubInv = subscribeInventory((liveInv) => {
+      setInventory((prev) => ({
+        ...prev,
+        S: typeof liveInv.S === 'number' ? liveInv.S : prev.S,
+        M: typeof liveInv.M === 'number' ? liveInv.M : prev.M,
+        L: typeof liveInv.L === 'number' ? liveInv.L : prev.L,
+      }));
+    });
 
-    fetchLiveInventory();
-    const interval = setInterval(fetchLiveInventory, 3500);
-    window.addEventListener('focus', fetchLiveInventory);
+    // 2. Live Firestore Orders Listener
+    const unsubOrders = subscribeOrders((liveOrders) => {
+      if (Array.isArray(liveOrders)) {
+        setRecentOrders(liveOrders);
+      }
+    });
+
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', fetchLiveInventory);
+      unsubInv();
+      unsubOrders();
     };
   }, []);
 
@@ -392,7 +395,11 @@ export default function App() {
         return next;
       });
 
-      // Synchronize deduction with server
+      // Real-time Firestore Cloud sync for inventory and order
+      deductInventoryInFirestore(order.items).catch(() => {});
+      saveOrderToFirestore(order).catch(() => {});
+
+      // Fallback local server API call
       fetch('/api/inventory/deduct', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
