@@ -128,7 +128,7 @@ interface SizeInventory {
 const DEFAULT_INVENTORY: Record<string, SizeInventory> = {
   "oci-elite-2-gloves": {
     S: 5,
-    M: 0,
+    M: 1,
     L: 0,
   },
 };
@@ -193,7 +193,7 @@ function deductInventory(items: any[]) {
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
     if (!inv[productId]) {
-      inv[productId] = { S: 4, M: 0, L: 0 };
+      inv[productId] = { S: 5, M: 1, L: 0 };
     }
     const size = String(it.selectedSize || "M").trim();
     const qty = Number(it.quantity || 1);
@@ -708,10 +708,14 @@ app.post("/api/paypal/create-order", async (req, res) => {
                 currency_code: currency,
                 value: shippingCost.toFixed(2),
               },
-              discount: {
-                currency_code: currency,
-                value: discountAmount.toFixed(2),
-              },
+              ...(discountAmount > 0
+                ? {
+                    discount: {
+                      currency_code: currency,
+                      value: discountAmount.toFixed(2),
+                    },
+                  }
+                : {}),
             },
           },
           items: paypalItems,

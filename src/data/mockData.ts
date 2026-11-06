@@ -35,7 +35,7 @@ export const SINGLE_PRODUCT: Product = {
   ],
   sizes: [
     { size: 'S', inStock: true, stockCount: 5 },
-    { size: 'M', inStock: false, stockCount: 0 },
+    { size: 'M', inStock: true, stockCount: 1 },
     { size: 'L', inStock: false, stockCount: 0 }
   ],
   colorway: 'Blackout Stealth',
@@ -97,7 +97,7 @@ export const REVIEWS: Review[] = [
 
 export const SIZING_DATA = [
   { size: 'S' as GloveSize, handLengthCm: '16.5 - 18.0', palmWidthCm: '7.5 - 8.2', ageGuide: 'Teens / Small Adult (In Stock)' },
-  { size: 'M' as GloveSize, handLengthCm: '18.1 - 19.5', palmWidthCm: '8.3 - 9.0', ageGuide: 'Standard Adult (Sold Out)' },
+  { size: 'M' as GloveSize, handLengthCm: '18.1 - 19.5', palmWidthCm: '8.3 - 9.0', ageGuide: 'Standard Adult (In Stock - 1 Left)' },
   { size: 'L' as GloveSize, handLengthCm: '19.6 - 21.0', palmWidthCm: '9.1 - 10.0', ageGuide: 'Large Adult (Sold Out)' }
 ];
 
@@ -118,7 +118,7 @@ export const FAQS = [
 
 export const CHAT_KNOWLEDGE_BASE: Record<string, string> = {
   wet: 'The ELITE 1.0 GLOVES feature an all-weather contact grip designed specifically for wet Irish conditions, muck, and rain. The wetter the ball gets, the more friction the contact surface generates.',
-  size: 'We offer sizes S, M, and L. Currently there are only 4 pairs of size S remaining, while size M and L are sold out!',
+  size: 'We offer sizes S, M, and L. Currently size S and size M are in stock (only 1 pair left in size M!), while size L is sold out!',
   delivery: 'Orders are shipped from Ireland via An Post Tracked & DPD 24h Express. Orders placed before 2 PM dispatch same-day.',
   care: 'Wash gently in lukewarm water after muck or wet pitch games. Never dry on hot radiators as this will dry out the grip.',
   contact: 'You can email our team directly at contactocisports@gmail.com anytime. We respond within a few hours!',

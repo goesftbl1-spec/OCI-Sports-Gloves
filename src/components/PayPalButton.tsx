@@ -154,9 +154,12 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
               });
 
               if (res.ok) {
-                const serverData = await res.json();
-                if (serverData.id) {
-                  return serverData.id;
+                const cType = res.headers.get('content-type') || '';
+                if (cType.includes('application/json')) {
+                  const serverData = await res.json();
+                  if (serverData.id) {
+                    return serverData.id;
+                  }
                 }
               }
             } catch {
@@ -165,78 +168,151 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
 
             // Fallback to official PayPal SDK actions.order.create
             try {
-              const rawSubtotal = itemsRef.current.reduce((acc, item) => {
-                const itemBase = item.product.price;
-                const itemPers = item.personalization?.enabled ? 4.0 : 0;
-                return acc + (itemBase + itemPers) * item.quantity;
-              }, 0);
+              const rawSubtotal = Number(
+                itemsRef.current
+                  .reduce((acc, item) => {
+                    const itemBase = item.product.price;
+                    const itemPers = item.personalization?.enabled ? 4.0 : 0;
+                    return acc + (itemBase + itemPers) * item.quantity;
+                  }, 0)
+                  .toFixed(2)
+              );
+
               const isSpecialPromo = promoRef.current === 'C0D3SPEC1AL15';
               const discount = isSpecialPromo
                 ? Math.min(rawSubtotal, 2.0)
-                : promoRef.current
-                ? (rawSubtotal * discountPercentage) / 100
+                : promoRef.current && discountPercentage > 0
+                ? Number(((rawSubtotal * discountPercentage) / 100).toFixed(2))
                 : 0;
-              const postDiscountSubtotal = Math.max(0, rawSubtotal - discount);
+
               const shippingRate = isSpecialPromo ? 0 : 3.99;
-              const grandTotal = Number((postDiscountSubtotal + shippingRate).toFixed(2));
+              const grandTotal = Number(Math.max(0.01, rawSubtotal - discount + shippingRate).toFixed(2));
+
+              const countryToCode: Record<string, string> = {
+                Ireland: 'IE',
+                'United Kingdom': 'GB',
+                'United States': 'US',
+                Australia: 'AU',
+              };
+              const countryCode = countryToCode[shippingRef.current.country] || 'IE';
+
+              const shippingPayload = {
+                name: {
+                  full_name: (shippingRef.current.fullName || 'Valued Customer').slice(0, 300),
+                },
+                address: {
+                  address_line_1: (shippingRef.current.addressLine1 || '').slice(0, 300),
+                  address_line_2: (shippingRef.current.addressLine2 || '').slice(0, 300),
+                  admin_area_2: (shippingRef.current.city || 'Dublin').slice(0, 120),
+                  admin_area_1: (shippingRef.current.county || 'Dublin').slice(0, 120),
+                  postal_code: (shippingRef.current.eircodePostcode || '').slice(0, 60),
+                  country_code: countryCode,
+                },
+              };
+
+              const itemsPayload = itemsRef.current.map((it) => {
+                const unitPrice = Number((it.product.price + (it.personalization?.enabled ? 4.0 : 0)).toFixed(2));
+                return {
+                  name: it.product.name.slice(0, 127),
+                  unit_amount: {
+                    currency_code: currencyRef.current || 'EUR',
+                    value: unitPrice.toFixed(2),
+                  },
+                  quantity: String(it.quantity),
+                  category: 'PHYSICAL_GOODS',
+                  description: `Size: ${it.selectedSize} | Cut: ${it.selectedCut}${it.personalization?.enabled ? ` | Foil: ${it.personalization.text}` : ''}`.slice(0, 127),
+                };
+              });
+
+              // CRITICAL: item_total MUST equal the sum of (unit_amount * quantity) across all items
+              // Discounts MUST be passed in breakdown.discount so (item_total + shipping - discount == value)
+              const amountBreakdown: any = {
+                item_total: {
+                  currency_code: currencyRef.current || 'EUR',
+                  value: rawSubtotal.toFixed(2),
+                },
+                shipping: {
+                  currency_code: currencyRef.current || 'EUR',
+                  value: shippingRate.toFixed(2),
+                },
+              };
+
+              if (discount > 0) {
+                amountBreakdown.discount = {
+                  currency_code: currencyRef.current || 'EUR',
+                  value: discount.toFixed(2),
+                };
+              }
+
+              const customIdPayload = JSON.stringify({
+                email: shippingRef.current.email,
+                phone: shippingRef.current.phone,
+                appliedPromo: promoRef.current,
+              });
 
               if (actions?.order?.create) {
-                const orderId = await actions.order.create({
-                  intent: 'CAPTURE',
-                  purchase_units: [
-                    {
-                      amount: {
-                        currency_code: currencyRef.current || 'EUR',
-                        value: grandTotal.toFixed(2),
-                        breakdown: {
-                          item_total: {
-                            currency_code: currencyRef.current || 'EUR',
-                            value: postDiscountSubtotal.toFixed(2),
-                          },
-                          shipping: {
-                            currency_code: currencyRef.current || 'EUR',
-                            value: shippingRate.toFixed(2),
-                          },
-                        },
-                      },
-                      description: 'OCI Sports Matchday Gloves Order',
-                      shipping: {
-                        name: {
-                          full_name: (shippingRef.current.fullName || 'Valued Customer').slice(0, 300),
-                        },
-                        address: {
-                          address_line_1: (shippingRef.current.addressLine1 || '').slice(0, 300),
-                          address_line_2: (shippingRef.current.addressLine2 || '').slice(0, 300),
-                          admin_area_2: (shippingRef.current.city || 'Dublin').slice(0, 120),
-                          admin_area_1: (shippingRef.current.county || 'Dublin').slice(0, 120),
-                          postal_code: (shippingRef.current.eircodePostcode || '').slice(0, 60),
-                          country_code: shippingRef.current.country === 'Ireland' ? 'IE' : shippingRef.current.country === 'United Kingdom' ? 'GB' : 'IE',
-                        },
-                      },
-                      items: itemsRef.current.map((it) => ({
-                        name: it.product.name.slice(0, 127),
-                        unit_amount: {
+                try {
+                  const orderId = await actions.order.create({
+                    intent: 'CAPTURE',
+                    purchase_units: [
+                      {
+                        amount: {
                           currency_code: currencyRef.current || 'EUR',
-                          value: (it.product.price + (it.personalization?.enabled ? 4.0 : 0)).toFixed(2),
+                          value: grandTotal.toFixed(2),
+                          breakdown: amountBreakdown,
                         },
-                        quantity: String(it.quantity),
-                        category: 'PHYSICAL_GOODS',
-                        description: `Size: ${it.selectedSize} | Cut: ${it.selectedCut}${it.personalization?.enabled ? ` | Foil: ${it.personalization.text}` : ''}`.slice(0, 127),
-                      })),
-                      custom_id: JSON.stringify({
-                        email: shippingRef.current.email,
-                        phone: shippingRef.current.phone,
-                        appliedPromo: promoRef.current,
-                      }),
-                    },
-                  ],
-                });
-                return orderId;
+                        description: 'OCI Sports Matchday Gloves Order',
+                        shipping: shippingPayload,
+                        items: itemsPayload,
+                        custom_id: customIdPayload,
+                      },
+                    ],
+                  });
+                  return orderId;
+                } catch (breakdownErr: any) {
+                  console.warn('PayPal line-item breakdown rejected. Retrying with direct unit amount:', breakdownErr);
+                  // Resilient fail-safe: pass flat grandTotal so card checkout is never blocked
+                  try {
+                    const fallbackOrderId = await actions.order.create({
+                      intent: 'CAPTURE',
+                      purchase_units: [
+                        {
+                          amount: {
+                            currency_code: currencyRef.current || 'EUR',
+                            value: grandTotal.toFixed(2),
+                          },
+                          description: 'OCI Sports Matchday Gloves Order',
+                          shipping: shippingPayload,
+                          custom_id: customIdPayload,
+                        },
+                      ],
+                    });
+                    return fallbackOrderId;
+                  } catch (fallbackErr: any) {
+                    console.warn('Secondary fallback failed. Retrying minimal purchase unit:', fallbackErr);
+                    const minimalOrderId = await actions.order.create({
+                      intent: 'CAPTURE',
+                      purchase_units: [
+                        {
+                          amount: {
+                            currency_code: currencyRef.current || 'EUR',
+                            value: grandTotal.toFixed(2),
+                          },
+                          description: 'OCI Sports Matchday Gloves Order',
+                        },
+                      ],
+                    });
+                    return minimalOrderId;
+                  }
+                }
               }
               throw new Error('PayPal order could not be created.');
             } catch (err: any) {
               setIsProcessing(false);
-              const errMsg = err.message || 'Error communicating with PayPal.';
+              let errMsg = err?.message || 'Error communicating with PayPal.';
+              if (errMsg.includes('status 422') || errMsg.includes('UNPROCESSABLE_ENTITY') || errMsg.includes('AMOUNT_MISMATCH')) {
+                errMsg = 'Payment initialization error. Please verify your address details or select PayPal to complete payment.';
+              }
               onError(errMsg);
               throw err;
             }
@@ -267,18 +343,21 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
               });
 
               if (res.ok) {
-                const captureResult = await res.json();
-                if (captureResult.success && captureResult.order) {
-                  // Backup locally immediately
-                  try {
-                    const localExisting = JSON.parse(localStorage.getItem('oci_orders_store') || '[]');
-                    const localUpdated = [captureResult.order, ...localExisting.filter((o: any) => o.orderId !== captureResult.order.orderId)];
-                    localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
-                  } catch {}
+                const cType = res.headers.get('content-type') || '';
+                if (cType.includes('application/json')) {
+                  const captureResult = await res.json();
+                  if (captureResult.success && captureResult.order) {
+                    // Backup locally immediately
+                    try {
+                      const localExisting = JSON.parse(localStorage.getItem('oci_orders_store') || '[]');
+                      const localUpdated = [captureResult.order, ...localExisting.filter((o: any) => o.orderId !== captureResult.order.orderId)];
+                      localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
+                    } catch {}
 
-                  setIsProcessing(false);
-                  onSuccess(captureResult.order);
-                  return;
+                    setIsProcessing(false);
+                    onSuccess(captureResult.order);
+                    return;
+                  }
                 }
               }
             } catch (serverCaptureErr) {
