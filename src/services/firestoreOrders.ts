@@ -17,9 +17,9 @@ const ORDERS_COLLECTION = 'orders';
 const INVENTORY_COLLECTION = 'inventory';
 const INVENTORY_DOC_ID = 'oci-elite-2-gloves';
 
-// Current stock: Small = 5, Medium = 0 (purchased by customer), Large = 0
+// Current stock: Small = 2, Medium = 0, Large = 0
 export const DEFAULT_LIVE_INVENTORY: Record<GloveSize, number> = {
-  S: 5,
+  S: 2,
   M: 0,
   L: 0,
   'Youth M': 0,
@@ -141,16 +141,16 @@ export function subscribeInventory(
         if (snapshot.exists()) {
           const data = snapshot.data();
           onInventoryUpdated({
-            S: typeof data.S === 'number' ? data.S : 5,
+            S: typeof data.S === 'number' ? data.S : 2,
             M: typeof data.M === 'number' ? data.M : 0,
             L: typeof data.L === 'number' ? data.L : 0,
           });
         } else {
-          // Initialize live cloud inventory (Medium = 0 since customer bought it)
-          const initial = { S: 5, M: 0, L: 0, updatedAt: new Date().toISOString() };
+          // Initialize live cloud inventory
+          const initial = { S: 2, M: 0, L: 0, updatedAt: new Date().toISOString() };
           try {
             await setDoc(invRef, initial);
-            onInventoryUpdated({ S: 5, M: 0, L: 0 });
+            onInventoryUpdated({ S: 2, M: 0, L: 0 });
           } catch {}
         }
       },
@@ -176,10 +176,10 @@ export async function deductInventoryInFirestore(items: CartItem[]): Promise<boo
       const invDoc = await transaction.get(invRef);
       const current = invDoc.exists()
         ? invDoc.data()
-        : { S: 5, M: 0, L: 0 };
+        : { S: 2, M: 0, L: 0 };
 
       const updated = {
-        S: typeof current.S === 'number' ? current.S : 5,
+        S: typeof current.S === 'number' ? current.S : 2,
         M: typeof current.M === 'number' ? current.M : 0,
         L: typeof current.L === 'number' ? current.L : 0,
       };

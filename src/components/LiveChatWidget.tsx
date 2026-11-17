@@ -8,7 +8,7 @@ export const LiveChatWidget: React.FC = () => {
     {
       id: 'msg-1',
       sender: 'support',
-      text: 'Dia duit! Welcome to OCI Sports GAA Support. How can we help you gear up for your next club or county clash?',
+      text: 'Dia duit! Welcome to OCI GAA Support. How can we help you gear up for your next club or county clash?',
       time: 'Just now',
       quickReplies: [
         'How much are the gloves?',
@@ -69,7 +69,7 @@ export const LiveChatWidget: React.FC = () => {
       }
 
       const data = await res.json();
-      const replyText = data.reply || "Dia duit! How else can I assist you with your OCI Sports gear?";
+      const replyText = data.reply || "Dia duit! How else can I assist you with your OCI gear?";
 
       const botMsg: ChatMessage = {
         id: `support-${Date.now()}`,

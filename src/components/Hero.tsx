@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef } from 'react';
 import { ArrowRight, Star } from 'lucide-react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 
@@ -8,7 +8,6 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onShopNow, onViewReviews }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLElement>(null);
 
   // Dynamic interactive mouse spotlight tracking
@@ -42,20 +41,6 @@ export const Hero: React.FC<HeroProps> = ({ onShopNow, onViewReviews }) => {
     onShopNow();
   };
 
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch(() => {
-        // Safe fallback if browser requires interaction
-      });
-    }
-  }, []);
-
-  const handleEnded = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
-  };
-
   // Subtle floating ember specs for championship stadium atmosphere
   const embers = [
     { id: 1, left: '15%', bottom: '20%', size: '4px', duration: 4.2, delay: 0 },
@@ -72,21 +57,8 @@ export const Hero: React.FC<HeroProps> = ({ onShopNow, onViewReviews }) => {
       onMouseLeave={handleMouseLeave}
       className="relative min-h-[92vh] flex flex-col items-center justify-center text-center px-4 sm:px-6 bg-black overflow-hidden"
     >
-      {/* Full-Screen Video Background covering entire hero section */}
-      <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <video
-          ref={videoRef}
-          src="/hero-video.mp4"
-          autoPlay
-          muted
-          playsInline
-          loop={false}
-          onEnded={handleEnded}
-          className="w-full h-full object-cover object-center"
-        />
-        {/* Subtle dark gradient overlay to guarantee text and buttons remain crisp and legible */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/50 to-black/90" />
-      </div>
+      {/* Subtle dark gradient backdrop */}
+      <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0 bg-gradient-to-b from-zinc-950 via-black to-black" />
 
       {/* Floating Stadium Embers */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-[1]">
@@ -175,7 +147,7 @@ export const Hero: React.FC<HeroProps> = ({ onShopNow, onViewReviews }) => {
           className="mt-5 text-base sm:text-lg md:text-xl text-zinc-300 font-normal max-w-2xl leading-relaxed text-center"
         >
           Any Condition. Rain. Muck. Snow. We Have You Covered.{' '}
-          <span className="text-[#e5b338] font-bold tracking-wide">OCI</span> Sport Gloves Are{' '}
+          <span className="text-[#e5b338] font-bold tracking-wide">OCI</span> Gloves Are{' '}
           <span className="relative inline-block text-white font-semibold">
             Built To Last
             {/* Animated liquid-gold underline glow */}

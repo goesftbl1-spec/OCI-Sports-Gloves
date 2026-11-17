@@ -44,8 +44,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           whileTap={{ scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
           className="flex items-center cursor-pointer group select-none py-1 relative"
-          title="OCI Sports Home"
-          aria-label="OCI Sports Home"
+          title="OCI Home"
+          aria-label="OCI Home"
         >
           <div className="absolute inset-0 bg-[#e5b338]/0 group-hover:bg-[#e5b338]/15 rounded-lg blur-md transition-all duration-300" />
           <img

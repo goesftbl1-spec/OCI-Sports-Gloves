@@ -213,8 +213,10 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
 
               const itemsPayload = itemsRef.current.map((it) => {
                 const unitPrice = Number((it.product.price + (it.personalization?.enabled ? 4.0 : 0)).toFixed(2));
+                const sizeLabel = it.selectedSize ? `Size ${it.selectedSize}` : 'Standard';
                 return {
-                  name: it.product.name.slice(0, 127),
+                  name: `${it.product.name} - ${sizeLabel}`.slice(0, 127),
+                  sku: `${it.product.id}-${it.selectedSize || 'STD'}`.slice(0, 127),
                   unit_amount: {
                     currency_code: currencyRef.current || 'EUR',
                     value: unitPrice.toFixed(2),
@@ -224,6 +226,10 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                   description: `Size: ${it.selectedSize} | Cut: ${it.selectedCut}${it.personalization?.enabled ? ` | Foil: ${it.personalization.text}` : ''}`.slice(0, 127),
                 };
               });
+
+              const orderDescription = `OCI: ${itemsRef.current
+                .map((it) => `${it.quantity}x ${it.product.name} (Size: ${it.selectedSize})`)
+                .join(', ')}`.slice(0, 127);
 
               // CRITICAL: item_total MUST equal the sum of (unit_amount * quantity) across all items
               // Discounts MUST be passed in breakdown.discount so (item_total + shipping - discount == value)
@@ -262,7 +268,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                           value: grandTotal.toFixed(2),
                           breakdown: amountBreakdown,
                         },
-                        description: 'OCI Sports Matchday Gloves Order',
+                        description: orderDescription,
                         shipping: shippingPayload,
                         items: itemsPayload,
                         custom_id: customIdPayload,
@@ -282,7 +288,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                             currency_code: currencyRef.current || 'EUR',
                             value: grandTotal.toFixed(2),
                           },
-                          description: 'OCI Sports Matchday Gloves Order',
+                          description: orderDescription,
                           shipping: shippingPayload,
                           custom_id: customIdPayload,
                         },
@@ -299,7 +305,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                             currency_code: currencyRef.current || 'EUR',
                             value: grandTotal.toFixed(2),
                           },
-                          description: 'OCI Sports Matchday Gloves Order',
+                          description: orderDescription,
                         },
                       ],
                     });

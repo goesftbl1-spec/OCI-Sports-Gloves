@@ -73,7 +73,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, o
                 OCI
               </div>
               <span className="text-lg font-black tracking-widest text-white uppercase font-['Outfit']">
-                OCI <span className="text-gold-gradient">SPORTS</span>
+                <span className="text-gold-gradient">OCI</span>
               </span>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed">
@@ -157,7 +157,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSizingModal, onOpenChat, o
               </button>
             )}
             <span>
-              © {new Date().getFullYear()} OCI Sports Ltd. Engineered for Gaelic Football. All rights reserved.
+              © {new Date().getFullYear()} OCI. Engineered for Gaelic Football. All rights reserved.
             </span>
           </div>
         </div>

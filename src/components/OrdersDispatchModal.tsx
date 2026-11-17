@@ -816,7 +816,7 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
                     </span>
                   </div>
                   <p className="text-xs text-zinc-400">
-                    OCI Sports Matchday Fulfilment &amp; Customer Order Management
+                    OCI Matchday Fulfilment &amp; Customer Order Management
                   </p>
                 </div>
               </div>

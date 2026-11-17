@@ -127,7 +127,7 @@ interface SizeInventory {
 
 const DEFAULT_INVENTORY: Record<string, SizeInventory> = {
   "oci-elite-2-gloves": {
-    S: 5,
+    S: 2,
     M: 0,
     L: 0,
   },
@@ -193,7 +193,7 @@ function deductInventory(items: any[]) {
   for (const it of items) {
     const productId = it.product?.id || it.id || "oci-elite-2-gloves";
     if (!inv[productId]) {
-      inv[productId] = { S: 5, M: 1, L: 0 };
+      inv[productId] = { S: 2, M: 0, L: 0 };
     }
     const size = String(it.selectedSize || "M").trim();
     const qty = Number(it.quantity || 1);
@@ -655,15 +655,17 @@ app.post("/api/paypal/create-order", async (req, res) => {
       grandTotal,
     } = authoritativeTotals;
 
-    // Construct PayPal Items Array using authoritative prices
+    // Construct PayPal Items Array using authoritative prices & explicit size
     const paypalItems = verifiedItems.map((it: any) => {
+      const sizeLabel = it.selectedSize ? `Size ${it.selectedSize}` : "Standard";
       const sizeDesc = it.selectedSize ? `Size: ${it.selectedSize}` : "";
       const persDesc = it.personalization?.enabled
         ? ` | Foil Print: "${it.personalization.text}" (${it.personalization.color})`
         : "";
 
       return {
-        name: String(it.product.name).slice(0, 127),
+        name: `${String(it.product.name)} - ${sizeLabel}`.slice(0, 127),
+        sku: `${it.product.id}-${it.selectedSize || "STD"}`.slice(0, 127),
         unit_amount: {
           currency_code: currency,
           value: it.unitPrice.toFixed(2),
@@ -673,6 +675,10 @@ app.post("/api/paypal/create-order", async (req, res) => {
         description: `${sizeDesc}${persDesc}`.slice(0, 127),
       };
     });
+
+    const unitSizeSummary = `OCI: ${verifiedItems
+      .map((it: any) => `${it.quantity}x ${it.product.name} (Size: ${it.selectedSize})`)
+      .join(", ")}`.slice(0, 127);
 
     const accessToken = await getPayPalAccessToken();
 
@@ -690,7 +696,7 @@ app.post("/api/paypal/create-order", async (req, res) => {
       purchase_units: [
         {
           reference_id: `OCI-${Date.now()}`,
-          description: "OCI Sports GAA High-Performance Football Equipment",
+          description: unitSizeSummary,
           custom_id: JSON.stringify({
             deliveryMethod: shippingName,
             appliedPromo: appliedPromo || null,
@@ -735,7 +741,7 @@ app.post("/api/paypal/create-order", async (req, res) => {
         },
       ],
       application_context: {
-        brand_name: "OCI SPORTS",
+        brand_name: "OCI",
         landing_page: "NO_PREFERENCE", // Enables guest card checkout without requiring a PayPal account
         user_action: "PAY_NOW",
         shipping_preference: "SET_PROVIDED_ADDRESS", // Pre-fills buyer's verified address
@@ -930,7 +936,7 @@ app.post("/api/paypal/capture-order", async (req, res) => {
         .join(", ");
 
       const emailPayload = {
-        _subject: `New OCI Sports Order #${finalOrder.orderId} - €${finalOrder.total.toFixed(2)} - PayPal Captured`,
+        _subject: `New OCI Order #${finalOrder.orderId} - €${finalOrder.total.toFixed(2)} - PayPal Captured`,
         _template: "table",
         _captcha: "false",
         OrderID: finalOrder.orderId,
@@ -1040,21 +1046,35 @@ app.post("/api/orders/import-paypal", async (req, res) => {
     const captureId = captureData?.id || purchaseUnit?.payments?.captures?.[0]?.id || cleanId;
     const paypalOrderId = orderData?.id || cleanId;
 
-    let items = purchaseUnit?.items?.map((it: any) => ({
-      cartItemId: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      product: {
-        id: "oci-elite-2-gloves",
-        name: it.name || "ELITE 1.0 GLOVES",
-        price: Number(it.unit_amount?.value || 12.99),
-      },
-      selectedSize: it.description?.includes("Size: S") ? "S" : it.description?.includes("Size: L") ? "L" : "M",
-      selectedCut: "Negative Cut",
-      quantity: Number(it.quantity || 1),
-    })) || [
+    let items = purchaseUnit?.items?.map((it: any) => {
+      const combinedText = `${it.name || ""} ${it.description || ""} ${it.sku || ""} ${purchaseUnit?.description || ""}`;
+      const detectedSize = /Size[:\s]+S\b|-S\b/i.test(combinedText)
+        ? "S"
+        : /Size[:\s]+L\b|-L\b/i.test(combinedText)
+        ? "L"
+        : /Size[:\s]+M\b|-M\b/i.test(combinedText)
+        ? "M"
+        : "S";
+      return {
+        cartItemId: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        product: {
+          id: "oci-elite-2-gloves",
+          name: it.name || "ELITE 1.0 GLOVES",
+          price: Number(it.unit_amount?.value || 12.99),
+        },
+        selectedSize: detectedSize,
+        selectedCut: "Negative Cut",
+        quantity: Number(it.quantity || 1),
+      };
+    }) || [
       {
         cartItemId: `item-${Date.now()}`,
         product: { id: "oci-elite-2-gloves", name: "ELITE 1.0 GLOVES", price: 12.99 },
-        selectedSize: "S",
+        selectedSize: /Size[:\s]+M\b/i.test(purchaseUnit?.description || "")
+          ? "M"
+          : /Size[:\s]+L\b/i.test(purchaseUnit?.description || "")
+          ? "L"
+          : "S",
         selectedCut: "Negative Cut",
         quantity: 1,
       },
@@ -1392,7 +1412,7 @@ app.post("/api/orders", (req, res) => {
         : "1x ELITE 1.0 GLOVES";
 
       const emailPayload = {
-        _subject: `New OCI Sports Order #${order.orderId} - €${Number(order.total || 0).toFixed(2)}`,
+        _subject: `New OCI Order #${order.orderId} - €${Number(order.total || 0).toFixed(2)}`,
         _template: "table",
         _captcha: "false",
         OrderID: order.orderId,
@@ -1630,11 +1650,11 @@ function getAIClient(): GoogleGenAI | null {
 }
 
 const CHAT_SYSTEM_INSTRUCTION = `
-You are the official AI Customer Support Assistant for OCI SPORTS (website: ocisports.com), the premier Irish Gaelic football equipment brand specializing in high-performance match gloves.
+You are the official AI Customer Support Assistant for OCI (website: ocisports.com), the premier Irish Gaelic football equipment brand specializing in high-performance match gloves.
 
 STORE KNOWLEDGE BASE (GROUND TRUTH - NEVER CONTRADICT OR INVENT OUTSIDE OF THIS):
 1. BRAND & IDENTITY:
-- Name: OCI SPORTS
+- Name: OCI
 - Slogan: "Any Condition. We Have You Covered."
 - Contact Email: contactocisports@gmail.com
 - Location: Dispatched directly from Ireland across all 32 counties.
@@ -1653,7 +1673,7 @@ STORE KNOWLEDGE BASE (GROUND TRUTH - NEVER CONTRADICT OR INVENT OUTSIDE OF THIS)
 - Weather Performance & Waterproofing: Engineered for rain, muck, snow, or heat. The contact palm moisture-activates — wet conditions and rain actually increase friction and grip against the leather of a size 5 O'Neills football! The backhand is breathable neoprene to allow hand agility and airflow.
 - Player Reviews: 4.7/5 stars from verified GAA club players (Louth, Galway, Kerry). Players praise durability through tough championship campaigns.
 - Glove Care: Rinse gently in lukewarm water after muddy matches. Air dry naturally at room temperature. NEVER dry on hot radiators or in tumble dryers, as direct heat degrades the latex foam.
-- Note: OCI Sports currently specializes exclusively in Gaelic football gloves. We do not sell boots, jerseys, or helmets.
+- Note: OCI currently specializes exclusively in Gaelic football gloves. We do not sell boots, jerseys, or helmets.
 
 3. SHIPPING & DELIVERY:
 - Ships to: ALL 32 counties of Ireland (Galway, Dublin, Cork, Kerry, Mayo, Donegal, etc.) and UK / Worldwide.
@@ -1898,7 +1918,7 @@ function generateSmartLocalResponse(
     q.startsWith("hi ") ||
     q.startsWith("hey ")
   ) {
-    return "Dia duit! Great to have you at OCI Sports. How can I help you gear up today? You can ask me about sizing (S/M/L), our all-weather wet grip, delivery times across Ireland, or order tracking!";
+    return "Dia duit! Great to have you at OCI. How can I help you gear up today? You can ask me about sizing (S/M/L), our all-weather wet grip, delivery times across Ireland, or order tracking!";
   }
 
   // 15. Unknown / Outside Knowledge
@@ -1956,7 +1976,7 @@ app.post("/api/chat", async (req, res) => {
   } catch (err: any) {
     console.error("Chat handler error:", err);
     return res.json({
-      reply: "Dia duit! I'm here to help with your OCI Sports gloves, sizing, shipping, or returns. How can I help you today?",
+      reply: "Dia duit! I'm here to help with your OCI gloves, sizing, shipping, or returns. How can I help you today?",
     });
   }
 });

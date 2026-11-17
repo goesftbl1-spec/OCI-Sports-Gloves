@@ -19,7 +19,7 @@ export const SINGLE_PRODUCT: Product = {
     back: bigLogoGlovesImage,
     palm: latexPalmImage,
   },
-  description: 'OCI SPORTS GAA Gloves are designed to last. — whether it’s rain, muck, snow or sunshine.\nAny Condition. We Have You Covered. OCI Sports.',
+  description: 'OCI GAA Gloves are designed to last — whether it’s rain, muck, snow or sunshine.\nAny Condition. We Have You Covered. OCI.',
   cut: 'Negative Cut',
   palmLatex: 'High-Tack All-Weather Contact Palm',
   bodyMaterial: 'Thermal Flex Neoprene with White 3D Silicone Print',
@@ -30,12 +30,12 @@ export const SINGLE_PRODUCT: Product = {
   keyFeatures: [
     'Engineered for rain, muck, snow, or sunshine',
     'High-grip contact palm calibrated for size 5 O\'Neills leather',
-    '3D silicone high-density OCI Sports branding',
+    '3D silicone high-density OCI branding',
     'Reinforced negative stitching built to last through relentless match play'
   ],
   sizes: [
-    { size: 'S', inStock: true, stockCount: 5 },
-    { size: 'M', inStock: true, stockCount: 1 },
+    { size: 'S', inStock: true, stockCount: 2 },
+    { size: 'M', inStock: false, stockCount: 0 },
     { size: 'L', inStock: false, stockCount: 0 }
   ],
   colorway: 'Blackout Stealth',
@@ -96,8 +96,8 @@ export const REVIEWS: Review[] = [
 ];
 
 export const SIZING_DATA = [
-  { size: 'S' as GloveSize, handLengthCm: '16.5 - 18.0', palmWidthCm: '7.5 - 8.2', ageGuide: 'Teens / Small Adult (In Stock)' },
-  { size: 'M' as GloveSize, handLengthCm: '18.1 - 19.5', palmWidthCm: '8.3 - 9.0', ageGuide: 'Standard Adult (In Stock - 1 Left)' },
+  { size: 'S' as GloveSize, handLengthCm: '16.5 - 18.0', palmWidthCm: '7.5 - 8.2', ageGuide: 'Teens / Small Adult (In Stock - 2 Left)' },
+  { size: 'M' as GloveSize, handLengthCm: '18.1 - 19.5', palmWidthCm: '8.3 - 9.0', ageGuide: 'Standard Adult (Sold Out)' },
   { size: 'L' as GloveSize, handLengthCm: '19.6 - 21.0', palmWidthCm: '9.1 - 10.0', ageGuide: 'Large Adult (Sold Out)' }
 ];
 
@@ -118,9 +118,9 @@ export const FAQS = [
 
 export const CHAT_KNOWLEDGE_BASE: Record<string, string> = {
   wet: 'The ELITE 1.0 GLOVES feature an all-weather contact grip designed specifically for wet Irish conditions, muck, and rain. The wetter the ball gets, the more friction the contact surface generates.',
-  size: 'We offer sizes S, M, and L. Currently size S and size M are in stock (only 1 pair left in size M!), while size L is sold out!',
+  size: 'We offer sizes S, M, and L. Currently only size S is in stock (only 2 pairs left!), while sizes M and L are sold out!',
   delivery: 'Orders are shipped from Ireland via An Post Tracked & DPD 24h Express. Orders placed before 2 PM dispatch same-day.',
   care: 'Wash gently in lukewarm water after muck or wet pitch games. Never dry on hot radiators as this will dry out the grip.',
   contact: 'You can email our team directly at contactocisports@gmail.com anytime. We respond within a few hours!',
-  default: 'Dia duit! I am your OCI Sports Gaelic Gear Specialist. Ask me anything about sizing S/M/L, match delivery, or the ELITE 1.0 GLOVES!'
+  default: 'Dia duit! I am your OCI Gaelic Gear Specialist. Ask me anything about sizing S/M/L, match delivery, or the ELITE 1.0 GLOVES!'
 };

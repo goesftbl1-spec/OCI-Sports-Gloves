@@ -14,6 +14,11 @@ service cloud.firestore {
       return request.resource.data;
     }
 
+    // Connection Check
+    match /test/{docId} {
+      allow read: if docId == 'connection';
+    }
+
     // Orders Collection
     match /orders/{orderId} {
       allow get: if isValidId(orderId);
@@ -26,7 +31,9 @@ service cloud.firestore {
         incoming().status is string &&
         incoming().status.size() <= 32;
       allow update: if isValidId(orderId) &&
-        incoming().orderId == existing().orderId;
+        incoming().orderId == existing().orderId &&
+        incoming().status is string &&
+        incoming().status.size() <= 32;
       allow delete: if false;
     }
 
@@ -34,9 +41,9 @@ service cloud.firestore {
     match /inventory/{productId} {
       allow read: if isValidId(productId);
       allow write: if isValidId(productId) &&
-        incoming().S is number && incoming().S >= 0 &&
-        incoming().M is number && incoming().M >= 0 &&
-        incoming().L is number && incoming().L >= 0;
+        incoming().S is number && incoming().S >= 0 && incoming().S <= 1000 &&
+        incoming().M is number && incoming().M >= 0 && incoming().M <= 1000 &&
+        incoming().L is number && incoming().L >= 0 && incoming().L <= 1000;
     }
 
     // Promos Collection

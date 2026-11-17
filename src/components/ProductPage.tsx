@@ -45,10 +45,10 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   onApplyPromo,
   onRemovePromo
 }) => {
-  // Authoritative stock calculation: 5 Small, others sold out
+  // Authoritative stock calculation: 2 Small, others sold out
   const sizeStockMap = useMemo(() => {
     const map: Record<GloveSize, { inStock: boolean; count: number }> = {
-      S: { inStock: true, count: 5 },
+      S: { inStock: true, count: 2 },
       M: { inStock: false, count: 0 },
       L: { inStock: false, count: 0 },
       'Youth M': { inStock: false, count: 0 },

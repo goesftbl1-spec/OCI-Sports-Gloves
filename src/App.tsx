@@ -45,14 +45,14 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>(REVIEWS);
   const [selectedProduct, setSelectedProduct] = useState<Product>(SINGLE_PRODUCT);
 
-  // Exact inventory tracking: 5 Small left, Medium sold out (just purchased), Large sold out
+  // Exact inventory tracking: 2 Small left, Medium sold out, Large sold out
   const [inventory, setInventory] = useState<Record<GloveSize, number>>(() => {
     try {
-      const saved = localStorage.getItem('oci_inventory_v4');
+      const saved = localStorage.getItem('oci_inventory_v5');
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      S: 5,
+      S: 2,
       M: 0,
       L: 0,
     } as Record<GloveSize, number>;
@@ -86,7 +86,7 @@ export default function App() {
   // Persist inventory state locally
   useEffect(() => {
     try {
-      localStorage.setItem('oci_inventory_v4', JSON.stringify(inventory));
+      localStorage.setItem('oci_inventory_v5', JSON.stringify(inventory));
     } catch (e) {
       console.warn('Could not save inventory to localStorage:', e);
     }
@@ -94,8 +94,8 @@ export default function App() {
 
   // Dynamically update product sizes with live inventory counts and inStock flags
   const activeProduct = React.useMemo(() => {
-    const sStock = inventory['S'] !== undefined ? inventory['S'] : 5;
-    const mStock = inventory['M'] !== undefined ? inventory['M'] : 1;
+    const sStock = inventory['S'] !== undefined ? inventory['S'] : 2;
+    const mStock = inventory['M'] !== undefined ? inventory['M'] : 0;
     const lStock = inventory['L'] !== undefined ? inventory['L'] : 0;
 
     return {
@@ -515,7 +515,7 @@ export default function App() {
       <footer className="py-7 border-t border-zinc-900 bg-black text-xs text-zinc-400">
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-            <span className="font-bold text-white uppercase tracking-wider font-['Outfit']">OCI SPORTS</span>
+            <span className="font-bold text-white uppercase tracking-wider font-['Outfit']">OCI</span>
             <span className="text-zinc-600">•</span>
             <span>Any Condition. We Have You Covered.</span>
             <span className="text-zinc-600">•</span>
@@ -548,7 +548,7 @@ export default function App() {
           </div>
 
           <div className="text-[11px] text-zinc-500">
-            © {new Date().getFullYear()} OCI Sports Ltd. All rights reserved.
+            © {new Date().getFullYear()} OCI. All rights reserved.
           </div>
         </div>
       </footer>
