@@ -3,6 +3,7 @@ import { loadScript } from '@paypal/paypal-js';
 import { CartItem, Currency, ShippingDetails, Order } from '../types';
 import { AlertCircle, RefreshCw, CreditCard, ShieldCheck, HelpCircle } from 'lucide-react';
 import { saveOrderToFirestore, deductInventoryInFirestore } from '../services/firestoreOrders';
+import { sendOrderEmailNotification, markOrderEmailDispatched } from '../services/orderEmail';
 
 interface PayPalButtonProps {
   clientId: string;
@@ -361,6 +362,12 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                       localStorage.setItem('oci_orders_store', JSON.stringify(localUpdated));
                     } catch {}
 
+                    if (captureResult.emailDispatched === true) {
+                      markOrderEmailDispatched(captureResult.order.orderId);
+                    } else {
+                      await sendOrderEmailNotification(captureResult.order).catch(() => {});
+                    }
+
                     setIsProcessing(false);
                     onSuccess(captureResult.order);
                     return;
@@ -431,14 +438,26 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                     console.warn('Firestore cloud sync notice:', fsErr);
                   }
 
+                  let emailDispatched = false;
                   try {
-                    await fetch('/api/orders', {
+                    const orderSaveRes = await fetch('/api/orders', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(verifiedOrder),
                     });
+                    const cType = orderSaveRes.headers.get('content-type') || '';
+                    if (orderSaveRes.ok && cType.includes('application/json')) {
+                      const orderSaveJson = await orderSaveRes.json();
+                      emailDispatched = orderSaveJson?.emailDispatched === true;
+                    }
                   } catch (orderSaveErr) {
                     console.error('Error saving order to /api/orders:', orderSaveErr);
+                  }
+
+                  if (emailDispatched) {
+                    markOrderEmailDispatched(verifiedOrder.orderId);
+                  } else {
+                    await sendOrderEmailNotification(verifiedOrder).catch(() => {});
                   }
 
                   setIsProcessing(false);
@@ -507,13 +526,25 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                   console.warn('Firestore cloud sync notice:', fsErr);
                 }
 
+                let emailDispatched = false;
                 try {
-                  await fetch('/api/orders', {
+                  const orderSaveRes = await fetch('/api/orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(verifiedOrder),
                   });
+                  const cType = orderSaveRes.headers.get('content-type') || '';
+                  if (orderSaveRes.ok && cType.includes('application/json')) {
+                    const orderSaveJson = await orderSaveRes.json();
+                    emailDispatched = orderSaveJson?.emailDispatched === true;
+                  }
                 } catch {}
+
+                if (emailDispatched) {
+                  markOrderEmailDispatched(verifiedOrder.orderId);
+                } else {
+                  await sendOrderEmailNotification(verifiedOrder).catch(() => {});
+                }
 
                 setIsProcessing(false);
                 onSuccess(verifiedOrder);

@@ -26,6 +26,11 @@ import {
   deductInventoryInFirestore,
   saveOrderToFirestore
 } from './services/firestoreOrders';
+import {
+  hasOrderEmailBeenDispatched,
+  markOrderEmailDispatched,
+  sendOrderEmailNotification
+} from './services/orderEmail';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'collection' | 'product'>('home');
@@ -360,14 +365,36 @@ export default function App() {
       localStorage.setItem('oci_orders_store', JSON.stringify(updated));
     } catch {}
 
-    // Ensure order is sent and persisted to server database
+    // Ensure order is sent and persisted to server database without duplicating emails
+    const alreadyEmailed = hasOrderEmailBeenDispatched(order.orderId);
     try {
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      }).catch(() => {});
-    } catch {}
+        body: JSON.stringify({ ...order, skipEmail: alreadyEmailed }),
+      })
+        .then(async (res) => {
+          if (alreadyEmailed) return;
+          const cType = res.headers.get('content-type') || '';
+          if (res.ok && cType.includes('application/json')) {
+            const data = await res.json();
+            if (data?.emailDispatched === true) {
+              markOrderEmailDispatched(order.orderId);
+              return;
+            }
+          }
+          await sendOrderEmailNotification(order);
+        })
+        .catch(() => {
+          if (!alreadyEmailed) {
+            sendOrderEmailNotification(order).catch(() => {});
+          }
+        });
+    } catch {
+      if (!alreadyEmailed) {
+        sendOrderEmailNotification(order).catch(() => {});
+      }
+    }
 
     // If giveaway promo was used, mark it permanently consumed
     if (order.appliedPromo === 'G1VEAWAY013' || appliedPromo === 'G1VEAWAY013') {

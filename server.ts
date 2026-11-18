@@ -9,6 +9,120 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 const CONTACT_EMAIL = "contactocisports@gmail.com";
+const OWNER_ORDER_EMAILS = [CONTACT_EMAIL, "oisinmcgee631@gmail.com"];
+const serverEmailedOrderIds = new Set<string>();
+
+function getServerCurrencySymbol(currency?: string): string {
+  if (currency === "GBP") return "£";
+  if (currency === "USD") return "$";
+  return "€";
+}
+
+function formatServerSizesSummary(items: any[] = []): string {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "Size Not Specified";
+  }
+  return items
+    .map((it: any) => {
+      const size = it?.selectedSize || "N/A";
+      const qty = Number(it?.quantity || 1);
+      return `Size ${size} x${qty}`;
+    })
+    .join(", ");
+}
+
+function formatServerItemsDetailed(items: any[] = []): string {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "1x ELITE 1.0 GLOVES";
+  }
+  return items
+    .map((it: any) => {
+      const qty = Number(it?.quantity || 1);
+      const name = it?.product?.name || "ELITE 1.0 GLOVES";
+      const size = it?.selectedSize || "N/A";
+      const cut = it?.selectedCut ? `, ${it.selectedCut}` : "";
+      const pers = it?.personalization?.enabled
+        ? ` [Foil: "${it.personalization.text || ""}" - ${it.personalization.color || "Gold"}]`
+        : "";
+      return `${qty}x ${name} — Size: ${size}${cut}${pers}`;
+    })
+    .join(" | ");
+}
+
+async function dispatchServerOrderEmails(
+  order: any,
+  paymentStatusLabel?: string
+): Promise<boolean> {
+  try {
+    const sizesSummary = formatServerSizesSummary(order.items);
+    const itemsDetailed = formatServerItemsDetailed(order.items);
+    const symbol = getServerCurrencySymbol(order.currency);
+    const totalFormatted = `${symbol}${Number(order.total || 0).toFixed(2)}`;
+    const subjectSuffix = paymentStatusLabel ? ` - ${paymentStatusLabel}` : "";
+
+    const emailPayload: Record<string, string> = {
+      _subject: `New OCI Order #${order.orderId} (${sizesSummary}) - ${totalFormatted}${subjectSuffix}`,
+      _template: "table",
+      _captcha: "false",
+      GloveSize: sizesSummary,
+      ItemsOrdered: itemsDetailed,
+      OrderID: String(order.orderId || ""),
+      PayPalOrderID: String(order.paypalOrderId || "N/A"),
+      PayPalTransactionID: String(order.paypalTransactionId || "N/A"),
+      PaymentMethod: String(order.paymentMethod || "online"),
+      CustomerName: String(order.shippingDetails?.fullName || order.customerName || "Customer"),
+      Email: String(order.shippingDetails?.email || order.customerEmail || order.payerEmail || ""),
+      Phone: String(order.shippingDetails?.phone || ""),
+      AddressLine1: String(order.shippingDetails?.addressLine1 || ""),
+      AddressLine2: String(order.shippingDetails?.addressLine2 || ""),
+      City: String(order.shippingDetails?.city || ""),
+      County: String(order.shippingDetails?.county || ""),
+      EircodePostcode: String(order.shippingDetails?.eircodePostcode || ""),
+      Country: String(order.shippingDetails?.country || ""),
+      DeliveryMethod: String(order.deliveryMethod || "Tracked Express Delivery"),
+      TotalAmount: totalFormatted,
+      DatePlaced: new Date().toLocaleString("en-IE"),
+    };
+
+    if (paymentStatusLabel) {
+      emailPayload.PaymentStatus = paymentStatusLabel;
+    }
+
+    const results = await Promise.allSettled(
+      OWNER_ORDER_EMAILS.map(async (recipient) => {
+        const res = await fetch(`https://formsubmit.co/ajax/${recipient}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Origin: "https://ocisports.com",
+            Referer: "https://ocisports.com/",
+          },
+          body: JSON.stringify(emailPayload),
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!res.ok) return false;
+        try {
+          const data: any = await res.json();
+          return data?.success !== false && data?.success !== "false";
+        } catch {
+          return true;
+        }
+      })
+    );
+
+    const anySucceeded = results.some(
+      (r) => r.status === "fulfilled" && r.value === true
+    );
+    if (anySucceeded && order?.orderId) {
+      serverEmailedOrderIds.add(String(order.orderId));
+    }
+    return anySucceeded;
+  } catch (err) {
+    console.error("Error dispatching order email:", err);
+    return false;
+  }
+}
 
 app.use(express.json());
 
@@ -929,50 +1043,13 @@ app.post("/api/paypal/capture-order", async (req, res) => {
       console.error("Error deducting inventory on capture:", invErr);
     }
 
-    // Email dispatch notice to store fulfillment
-    try {
-      const itemsList = totals.verifiedItems
-        .map((it: any) => `${it.quantity}x ${it.product.name} (Size: ${it.selectedSize})`)
-        .join(", ");
+    // Email dispatch notice to store fulfillment (includes prominent GloveSize)
+    const emailDispatched = await dispatchServerOrderEmails(
+      finalOrder,
+      "PAID (PayPal Completed)"
+    );
 
-      const emailPayload = {
-        _subject: `New OCI Order #${finalOrder.orderId} - €${finalOrder.total.toFixed(2)} - PayPal Captured`,
-        _template: "table",
-        _captcha: "false",
-        OrderID: finalOrder.orderId,
-        PayPalOrderID: finalOrder.paypalOrderId,
-        PayPalTransactionID: finalOrder.paypalTransactionId,
-        PaymentStatus: "PAID (PayPal Completed)",
-        CustomerName: finalOrder.shippingDetails.fullName,
-        Email: finalOrder.shippingDetails.email,
-        Phone: finalOrder.shippingDetails.phone,
-        AddressLine1: finalOrder.shippingDetails.addressLine1,
-        City: finalOrder.shippingDetails.city,
-        County: finalOrder.shippingDetails.county,
-        EircodePostcode: finalOrder.shippingDetails.eircodePostcode,
-        DeliveryService: finalOrder.deliveryMethod,
-        ItemsOrdered: itemsList,
-        TotalAmount: `€${finalOrder.total.toFixed(2)}`,
-        DatePlaced: new Date().toLocaleString("en-IE"),
-      };
-
-      // Email dispatch notice to both contactocisports@gmail.com and oisinmcgee631@gmail.com
-      fetch(`https://formsubmit.co/ajax/${CONTACT_EMAIL}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(emailPayload),
-      }).catch((err) => console.error("FormSubmit email notification error:", err));
-
-      fetch(`https://formsubmit.co/ajax/oisinmcgee631@gmail.com`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(emailPayload),
-      }).catch((err) => console.error("FormSubmit owner email error:", err));
-    } catch (e) {
-      console.error("Error dispatching email:", e);
-    }
-
-    return res.json({ success: true, order: finalOrder });
+    return res.json({ success: true, emailDispatched, order: finalOrder });
   } catch (err: any) {
     console.error("Server error capturing PayPal order:", err);
     return res.status(500).json({
@@ -1355,7 +1432,7 @@ app.patch("/api/orders/:orderId/status", checkAdminAuth, (req, res) => {
 });
 
 // 6.6 Save or sync an order (Authorized or genuine PayPal completion)
-app.post("/api/orders", (req, res) => {
+app.post("/api/orders", async (req, res) => {
   try {
     const order = req.body;
     if (!order || !order.orderId) {
@@ -1393,56 +1470,29 @@ app.post("/api/orders", (req, res) => {
         orders = [];
       }
     }
-    orders = [order, ...orders.filter((o) => o.orderId !== order.orderId)];
+
+    const alreadyExisted = orders.some((o) => o.orderId === order.orderId);
+    const { skipEmail, ...cleanOrder } = order;
+
+    orders = [cleanOrder, ...orders.filter((o) => o.orderId !== cleanOrder.orderId)];
     fs.writeFileSync(filePath, JSON.stringify(orders, null, 2), "utf-8");
 
-    // Strictly deduct purchased sizes from inventory
-    if (Array.isArray(order.items)) {
+    // Strictly deduct purchased sizes from inventory only once per orderId
+    if (!alreadyExisted && Array.isArray(cleanOrder.items)) {
       try {
-        deductInventory(order.items);
+        deductInventory(cleanOrder.items);
       } catch (e) {
         console.error("Error deducting inventory in /api/orders:", e);
       }
     }
 
-    // Send order confirmation email notice to store owner
-    try {
-      const itemsList = Array.isArray(order.items)
-        ? order.items.map((it: any) => `${it.quantity}x ${it.product?.name || "ELITE 1.0"} (Size: ${it.selectedSize})`).join(", ")
-        : "1x ELITE 1.0 GLOVES";
+    // Send order confirmation email notice to store owner (includes prominent GloveSize)
+    let emailDispatched = serverEmailedOrderIds.has(String(cleanOrder.orderId)) || Boolean(skipEmail);
+    if (!alreadyExisted && !emailDispatched) {
+      emailDispatched = await dispatchServerOrderEmails(cleanOrder);
+    }
 
-      const emailPayload = {
-        _subject: `New OCI Order #${order.orderId} - €${Number(order.total || 0).toFixed(2)}`,
-        _template: "table",
-        _captcha: "false",
-        OrderID: order.orderId,
-        PaymentMethod: order.paymentMethod || "online",
-        CustomerName: order.shippingDetails?.fullName || order.customerName || "Customer",
-        Email: order.shippingDetails?.email || order.customerEmail || "",
-        Phone: order.shippingDetails?.phone || "",
-        AddressLine1: order.shippingDetails?.addressLine1 || "",
-        City: order.shippingDetails?.city || "",
-        County: order.shippingDetails?.county || "",
-        EircodePostcode: order.shippingDetails?.eircodePostcode || "",
-        ItemsOrdered: itemsList,
-        TotalAmount: `€${Number(order.total || 0).toFixed(2)}`,
-        DatePlaced: new Date().toLocaleString("en-IE"),
-      };
-
-      fetch(`https://formsubmit.co/ajax/${CONTACT_EMAIL}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(emailPayload),
-      }).catch(() => {});
-
-      fetch(`https://formsubmit.co/ajax/oisinmcgee631@gmail.com`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(emailPayload),
-      }).catch(() => {});
-    } catch {}
-
-    res.json({ success: true, count: orders.length });
+    res.json({ success: true, count: orders.length, emailDispatched });
   } catch {
     res.status(400).json({ error: "Invalid order data" });
   }

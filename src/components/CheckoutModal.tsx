@@ -31,6 +31,7 @@ import {
 import {
   LIVE_PAYPAL_CLIENT_ID
 } from '../constants';
+import { sendOrderEmailNotification, markOrderEmailDispatched } from '../services/orderEmail';
 
 export { LIVE_PAYPAL_CLIENT_ID };
 
@@ -310,6 +311,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       };
 
       // 3. Save order to server safely (guard against non-JSON error pages)
+      let emailDispatched = false;
       try {
         const saveRes = await fetch('/api/orders', {
           method: 'POST',
@@ -317,8 +319,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           body: JSON.stringify(giveawayOrder),
         });
 
+        const cType = saveRes.headers.get('content-type') || '';
         if (!saveRes.ok) {
-          const cType = saveRes.headers.get('content-type') || '';
           if (cType.includes('application/json')) {
             const errData = await saveRes.json();
             if (errData && errData.error === 'PROMO_ALREADY_USED') {
@@ -327,9 +329,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               return;
             }
           }
+        } else if (cType.includes('application/json')) {
+          const saveJson = await saveRes.json();
+          emailDispatched = saveJson?.emailDispatched === true;
         }
       } catch (saveErr) {
         console.warn('Order save notice:', saveErr);
+      }
+
+      if (emailDispatched) {
+        markOrderEmailDispatched(giveawayOrder.orderId);
+      } else {
+        await sendOrderEmailNotification(giveawayOrder).catch(() => {});
       }
 
       // 4. Record redemption
