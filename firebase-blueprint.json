@@ -70,6 +70,9 @@
         "L": {
           "type": "number"
         },
+        "isVisible": {
+          "type": "boolean"
+        },
         "updatedAt": {
           "type": "string",
           "maxLength": 64

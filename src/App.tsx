@@ -17,14 +17,16 @@ import { OrderDetailsPage } from './components/OrderDetailsPage';
 import { CollectionPage } from './components/CollectionPage';
 import { Lock } from 'lucide-react';
 
-import { SINGLE_PRODUCT, PRODUCTS, REVIEWS } from './data/mockData';
+import { SINGLE_PRODUCT, REVIEWS } from './data/mockData';
 import { Product, CartItem, GloveSize, Currency, Review, Order } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   subscribeInventory,
   subscribeOrders,
   deductInventoryInFirestore,
-  saveOrderToFirestore
+  saveOrderToFirestore,
+  subscribeProductVisibility,
+  setProductVisibilityInFirestore
 } from './services/firestoreOrders';
 import {
   hasOrderEmailBeenDispatched,
@@ -63,7 +65,16 @@ export default function App() {
     } as Record<GloveSize, number>;
   });
 
-  // Real-time Firestore Cloud Synchronization for Inventory & Orders
+  // ELITE 1.0 GLOVES Storefront Visibility (Removed by default; owner can re-add anytime via Staff Portal)
+  const [isEliteGlovesActive, setIsEliteGlovesActive] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('oci_elite_gloves_active_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Real-time Firestore Cloud Synchronization for Inventory, Orders & Product Visibility
   useEffect(() => {
     // 1. Live Firestore Inventory Listener
     const unsubInv = subscribeInventory((liveInv) => {
@@ -75,7 +86,15 @@ export default function App() {
       }));
     });
 
-    // 2. Live Firestore Orders Listener
+    // 2. Live Firestore Product Visibility Listener
+    const unsubVis = subscribeProductVisibility((visible) => {
+      setIsEliteGlovesActive(visible);
+      try {
+        localStorage.setItem('oci_elite_gloves_active_v1', String(visible));
+      } catch {}
+    });
+
+    // 3. Live Firestore Orders Listener
     const unsubOrders = subscribeOrders((liveOrders) => {
       if (Array.isArray(liveOrders)) {
         setRecentOrders(liveOrders);
@@ -84,6 +103,7 @@ export default function App() {
 
     return () => {
       unsubInv();
+      unsubVis();
       unsubOrders();
     };
   }, []);
@@ -115,8 +135,22 @@ export default function App() {
   }, [selectedProduct, inventory]);
 
   const activeProducts = React.useMemo(() => {
-    return [activeProduct];
-  }, [activeProduct]);
+    return isEliteGlovesActive ? [activeProduct] : [];
+  }, [activeProduct, isEliteGlovesActive]);
+
+  const handleToggleEliteGloves = async (nextActive: boolean) => {
+    setIsEliteGlovesActive(nextActive);
+    try {
+      localStorage.setItem('oci_elite_gloves_active_v1', String(nextActive));
+    } catch {}
+    await setProductVisibilityInFirestore(nextActive);
+    addToast(
+      nextActive ? 'Product Re-Added' : 'Product Removed',
+      nextActive
+        ? 'ELITE 1.0 GLOVES are now live in Collection.'
+        : 'ELITE 1.0 GLOVES have been removed from Collection.'
+    );
+  };
 
   // Modals & Drawers
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -507,7 +541,7 @@ export default function App() {
                 onOpenSizingModal={() => setIsSizingModalOpen(true)}
               />
             </motion.div>
-          ) : (
+          ) : isEliteGlovesActive ? (
             <motion.div
               key="product"
               initial={{ opacity: 0, y: 12 }}
@@ -532,6 +566,31 @@ export default function App() {
                 discountPercentage={discountPercentage}
                 onApplyPromo={handleApplyPromo}
                 onRemovePromo={handleRemovePromo}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="collection-empty"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex-1 flex flex-col"
+            >
+              <CollectionPage
+                products={activeProducts}
+                currency={currency}
+                onSelectProduct={(prod) => {
+                  setSelectedProduct(prod);
+                  setCurrentPage('product');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+                onBackToHome={() => {
+                  setCurrentPage('home');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+                onAddToCart={handleAddToCart}
+                onOpenSizingModal={() => setIsSizingModalOpen(true)}
               />
             </motion.div>
           )}
@@ -630,6 +689,8 @@ export default function App() {
         isOpen={isOrdersModalOpen}
         onClose={() => setIsOrdersModalOpen(false)}
         recentOrders={recentOrders}
+        isEliteGlovesActive={isEliteGlovesActive}
+        onToggleEliteGloves={handleToggleEliteGloves}
       />
 
       {/* Live Chat Support Widget */}

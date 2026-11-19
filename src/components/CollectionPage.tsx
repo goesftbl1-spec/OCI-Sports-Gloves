@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Heart } from 'lucide-react';
+import { ArrowLeft, Heart, Package } from 'lucide-react';
 import { Product, Currency } from '../types';
 import { formatPrice } from '../utils/formatters';
 import { motion } from 'motion/react';
@@ -55,7 +55,35 @@ export const CollectionPage: React.FC<CollectionPageProps> = ({
           </div>
         </div>
 
-        {/* Product Grid (Room for more products later down the line) */}
+        {/* Product Grid or Clean Empty Collection State */}
+        {products.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="rounded-3xl bg-[#0c0c10] border border-zinc-800/90 p-10 sm:p-14 text-center max-w-xl mx-auto my-8 space-y-5"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-[#e5b338]">
+              <Package className="w-7 h-7" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white font-['Outfit']">
+                Collection Restocking Soon
+              </h2>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                No gloves are currently listed in the collection. Check back soon for the next OCI release.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-black font-black text-xs uppercase tracking-[0.18em] hover:bg-[#e5b338] transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Home</span>
+            </button>
+          </motion.div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8 justify-items-start">
           {products.map((product) => {
             const isHovered = hoveredId === product.id;
@@ -154,6 +182,7 @@ export const CollectionPage: React.FC<CollectionPageProps> = ({
             );
           })}
         </div>
+        )}
 
       </div>
     </div>

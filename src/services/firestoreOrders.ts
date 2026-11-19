@@ -182,6 +182,7 @@ export async function deductInventoryInFirestore(items: CartItem[]): Promise<boo
         S: typeof current.S === 'number' ? current.S : 2,
         M: typeof current.M === 'number' ? current.M : 0,
         L: typeof current.L === 'number' ? current.L : 0,
+        isVisible: typeof current.isVisible === 'boolean' ? current.isVisible : false,
       };
 
       for (const item of items) {
@@ -213,11 +214,73 @@ export async function setInventoryInFirestore(
   const path = `${INVENTORY_COLLECTION}/${INVENTORY_DOC_ID}`;
   try {
     const invRef = doc(db, INVENTORY_COLLECTION, INVENTORY_DOC_ID);
-    await setDoc(invRef, {
-      S: Math.max(0, sizes.S),
-      M: Math.max(0, sizes.M),
-      L: Math.max(0, sizes.L),
-      updatedAt: new Date().toISOString(),
+    await runTransaction(db, async (transaction) => {
+      const invDoc = await transaction.get(invRef);
+      const current = invDoc.exists() ? invDoc.data() : {};
+      transaction.set(invRef, {
+        S: Math.max(0, sizes.S),
+        M: Math.max(0, sizes.M),
+        L: Math.max(0, sizes.L),
+        isVisible: typeof current.isVisible === 'boolean' ? current.isVisible : false,
+        updatedAt: new Date().toISOString(),
+      });
+    });
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return false;
+  }
+}
+
+/**
+ * Real-time subscription to ELITE 1.0 GLOVES storefront visibility
+ */
+export function subscribeProductVisibility(
+  onVisibilityUpdated: (isVisible: boolean) => void
+): () => void {
+  const path = `${INVENTORY_COLLECTION}/${INVENTORY_DOC_ID}`;
+  try {
+    const invRef = doc(db, INVENTORY_COLLECTION, INVENTORY_DOC_ID);
+    return onSnapshot(
+      invRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          onVisibilityUpdated(typeof data.isVisible === 'boolean' ? data.isVisible : false);
+        } else {
+          onVisibilityUpdated(false);
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, path);
+      }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return () => {};
+  }
+}
+
+/**
+ * Toggle ELITE 1.0 GLOVES visibility on the Collection page (synced in Firestore)
+ */
+export async function setProductVisibilityInFirestore(isVisible: boolean): Promise<boolean> {
+  const path = `${INVENTORY_COLLECTION}/${INVENTORY_DOC_ID}`;
+  try {
+    const invRef = doc(db, INVENTORY_COLLECTION, INVENTORY_DOC_ID);
+    await runTransaction(db, async (transaction) => {
+      const invDoc = await transaction.get(invRef);
+      const current = invDoc.exists()
+        ? invDoc.data()
+        : { S: 2, M: 0, L: 0 };
+
+      transaction.set(invRef, {
+        S: typeof current.S === 'number' ? current.S : 2,
+        M: typeof current.M === 'number' ? current.M : 0,
+        L: typeof current.L === 'number' ? current.L : 0,
+        isVisible: Boolean(isVisible),
+        updatedAt: new Date().toISOString(),
+      });
     });
     return true;
   } catch (error) {

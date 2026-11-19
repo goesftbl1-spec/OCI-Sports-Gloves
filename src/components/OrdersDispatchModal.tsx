@@ -42,6 +42,8 @@ interface OrdersDispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   recentOrders?: Order[];
+  isEliteGlovesActive?: boolean;
+  onToggleEliteGloves?: (nextActive: boolean) => Promise<void> | void;
 }
 
 type OrderStatus = 'Pending' | 'Processing' | 'Dispatched' | 'Delivered' | 'Cancelled';
@@ -119,6 +121,8 @@ export const OrdersDispatchModal: React.FC<OrdersDispatchModalProps> = ({
   isOpen,
   onClose,
   recentOrders = [],
+  isEliteGlovesActive = false,
+  onToggleEliteGloves,
 }) => {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -908,6 +912,59 @@ Phone: ${order.shippingDetails?.phone || 'N/A'}`;
                   </div>
                 )}
               </form>
+            )}
+
+            {/* Storefront Product Catalog Toggle (Re-add or Remove ELITE 1.0 GLOVES anytime) */}
+            {onToggleEliteGloves && (
+              <div className="mb-4 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[#d4af37] shrink-0">
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black uppercase tracking-wider text-white">
+                        ELITE 1.0 GLOVES
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          isEliteGlovesActive
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {isEliteGlovesActive ? 'Live in Collection' : 'Removed from Collection'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      {isEliteGlovesActive
+                        ? 'Customers can currently view and buy ELITE 1.0 GLOVES on the Collection page.'
+                        : 'Hidden from the Collection page. Click Re-Add to Collection anytime to bring them back.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const nextState = !isEliteGlovesActive;
+                    await onToggleEliteGloves(nextState);
+                    setActionNotice(
+                      nextState
+                        ? 'ELITE 1.0 GLOVES re-added to the Collection page!'
+                        : 'ELITE 1.0 GLOVES removed from the Collection page.'
+                    );
+                    setTimeout(() => setActionNotice(null), 4000);
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+                    isEliteGlovesActive
+                      ? 'bg-zinc-900 hover:bg-rose-950 text-zinc-200 hover:text-rose-300 border border-zinc-700 hover:border-rose-700'
+                      : 'bg-[#d4af37] hover:bg-[#e5b338] text-black shadow-sm'
+                  }`}
+                >
+                  {isEliteGlovesActive ? 'Remove from Collection' : '+ Re-Add to Collection'}
+                </button>
+              </div>
             )}
 
             {/* Tab navigation */}
